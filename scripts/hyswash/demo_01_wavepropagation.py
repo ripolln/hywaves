@@ -13,7 +13,7 @@ import xarray as xr
 # dev bluemath library 
 sys.path.insert(0, op.join(op.dirname(__file__), '..', '..'))
 
-# bluemath swash module (bluemath.DD.swash)
+# SWASH wrap
 from hywaves.swash.wrap import SwashProject, SwashWrap
 
 # --------------------------------------------------------------------------- #
