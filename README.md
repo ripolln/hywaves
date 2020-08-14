@@ -8,21 +8,19 @@ A hybrid metamodel (numerical-statistical) approach to optimize complex waves ca
 3. [Documentation](#doc)
 4. [Schemes](#sch)
 5. [Install](#ins)
-  - 5.1. [Install from sources](#ins_src)
-  - 5.2. [Install SWAN numerical model](#ins_swn)
-  - 5.3. [Install SWASH numerical model](#ins_swh)
+    5.1. [Install from sources](#ins_src)
+    5.2. [Install SWAN numerical model](#ins_swn)
+    5.3. [Install SWASH numerical model](#ins_swh)
 6. [Examples](#exp)
-  - 6.1. [SWAN numerical wrap](#exp_1)
-  - 6.2. [HySWAN metamodel](#exp_2)
-  - 6.3. [SWASH numerical wrap](#exp_3)
-  - 6.4. [HySWASH metamodel](#exp_4)
+    6.1. [SWAN numerical wrap](#exp_1)
+    6.2. [HySWAN metamodel](#exp_2)
+    6.3. [SWASH numerical wrap](#exp_3)
+    6.4. [HySWASH metamodel](#exp_4)
 7. [Contributors](#ctr)
 8. [License](#lic)
 
 
-
-<a name="desc"></a>
-## Description
+## Description <a name="desc"></a>
 
 Solving open source waves numerical models executions could require considerable computational resources and time.
 This could be a problem when trying to solve a big dataset of numerical cases.
