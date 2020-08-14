@@ -19,8 +19,8 @@ A hybrid metamodel (numerical-statistical) approach to optimize complex waves ca
 7. [Contributors](#ctr)
 8. [License](#lic)
 
-
-## Description <a name="desc"></a>
+<a name="desc"></a>
+## Description
 
 Solving open source waves numerical models executions could require considerable computational resources and time.
 This could be a problem when trying to solve a big dataset of numerical cases.
@@ -87,8 +87,6 @@ HyWaves - SWAN STATIONARY Methodology
 - - -
 
 Source code is currently privately hosted on GitLab at:  <https://gitlab.com/geocean/bluemath/hywaves/tree/master> 
-
-A public "push" mirror can be located on GitHub at: <https://github.com/hywaves/hywaves/tree/master>
 
 
 <a name="ins_src"></a>
