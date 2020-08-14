@@ -17,9 +17,9 @@ A hybrid metamodel (numerical-statistical) approach to optimize complex waves ca
     3. [SWASH numerical wrap](#exp_3)
     4. [HySWASH metamodel](#exp_4)
 7. [Contributors](#ctr)
-8. [License](#lic)
+8. [License](#lic)\
 
-  
+
 <a name="desc"></a>
 ## Description
 
