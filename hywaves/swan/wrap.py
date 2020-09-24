@@ -207,9 +207,19 @@ class SwanWrap(object):
                 _stderr.flush()
                 _stderr.close()
 
-        # ln input file and run swan case
-        cmd = 'cd {0} && ln -sf {1} INPUT && {2} INPUT'.format(
-            p_run, input_file, self.bin)
+        # check if windows OS
+        is_win = sys.platform.startswith('win')
+
+        if is_win:
+            # WINDOWS - use swashrun command
+            cmd = 'cd {0} && swashrun input && {1} input'.format(
+                p_run, self.bin)
+
+        else:
+            # LINUX/MAC - ln input file and run swan case
+            cmd = 'cd {0} && ln -sf {1} INPUT && {2} INPUT'.format(
+                p_run, input_file, self.bin)
+
         bash_cmd(cmd)
 
     def extract_output(self, mesh=None):
