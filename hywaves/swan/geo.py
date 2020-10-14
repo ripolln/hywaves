@@ -7,7 +7,7 @@ import numpy as np
 def gc_distance(lat1, lon1, lat2, lon2):
     'Calculate great circle distance and azimuth (exact. parsed ml)'
 
-    # distance
+    # distance
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
 
     a = sin((lat2-lat1)/2)**2 + cos(lat1) * cos(lat2) * sin((lon2-lon1)/2)**2;
@@ -40,7 +40,7 @@ def shoot(lon, lat, azimuth, maxdist=None):
     """
     glat1 = lat * np.pi / 180.
     glon1 = lon * np.pi / 180.
-    s = maxdist / 1.852
+    s = maxdist / 1.852         # from n mi to km
     faz = azimuth * np.pi / 180.
 
     EPS= 0.00000000005
