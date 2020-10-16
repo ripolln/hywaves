@@ -99,3 +99,23 @@ def shoot(lon, lat, azimuth, maxdist=None):
     baz *= 180./np.pi
 
     return (glon2, glat2, baz)
+
+def geo_distance_azimuth(lat_matrix, lon_matrix, lat_point, lon_point):
+    '''
+    Returns geodesic distance and azimuth between lat,lon matrix and lat,lon
+    point in degrees
+    '''
+
+    arcl = np.zeros(lat_matrix.shape) * np.nan
+    azi = np.zeros(lat_matrix.shape) * np.nan
+
+    sh1, sh2 = lat_matrix.shape
+
+    for i in range(sh1):
+        for j in range(sh2):
+            arcl[i,j], azi[i,j] = gc_distance(
+                lat_point, lon_point, lat_matrix[i][j], lon_matrix[i][j]
+            )
+
+    return arcl, azi
+
