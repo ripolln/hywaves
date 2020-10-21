@@ -54,8 +54,6 @@ class SwanMesh(object):
 
     def export_dat(self, p_case):
         'exports depth values to .dat file'
-        
-        # TODO: it needs to be able to write also "self.depth_nested" in 
 
         p_export = op.join(p_case, self.depth_fn)
         np.savetxt(p_export, self.depth, fmt='%.2f')
@@ -91,84 +89,44 @@ class SwanProject(object):
 
         self.p_main = op.join(p_proj, n_proj)    # project path
         self.name = n_proj                       # project name
-        self.storm = None                        # storm name
 
         # sub folders 
         self.p_cases = op.join(self.p_main, 'cases')  # project cases
 
-        # nested parameters
-        self.nested = None          # activation
-        self.num_nest = None        # number of nested meshes to run
-        self.lon_nested = None      # longitude of nested meshgrids
-        self.lat_nested = None      # latitude of nested meshgrids
-
-        # SWAN mesh: main 
-        self.mesh_main = SwanMesh()
-        self.mesh_main.depth_fn = 'depth_main.dat'
-        self.mesh_main.output_fn = 'output_main.mat'
-
-
-        # SWAN mesh: nest1
-        self.mesh_nest1 = SwanMesh()
-        self.mesh_nest1.depth_fn = 'depth_nest1.dat'
-        self.mesh_nest1.output_fn = 'output_nest1.mat'
-        self.run_nest1 = False
-
-        # SWAN mesh: nest2
-        self.mesh_nest2 = SwanMesh()
-        self.mesh_nest2.depth_fn = 'depth_nest2.dat'
-        self.mesh_nest2.output_fn = 'output_nest2.mat'
-        self.run_nest2 = False
-
-        # SWAN mesh: nest3
-        self.mesh_nest3 = SwanMesh()
-        self.mesh_nest3.depth_fn = 'depth_nest3.dat'
-        self.mesh_nest3.output_fn = 'output_nest3.mat'
-        self.run_nest3 = False
-        
-        self.meshes_nested = [self.mesh_nest1, self.mesh_nest2, self.mesh_nest3]
-        # TODO: generate "self.mesh_nest_i" for range("num_nest")
-        
-#        # SWAN mesh: nested
-#        if self.nested == True:
-#            i = 0
-#            while i < self.num_nest:
-                
+        # project main mesh and nested meshes
+        self.mesh_main = None       # SwanMesh object for main mesh
+        self.mesh_nested_list = []  # list of SwanMesh objects for nested meshes
 
         # swan execution parameters
         self.params = d_params_template.copy()
-        
-        # set nested meshes to run
-        if self.num_nest == 1:
-            self.run_nest1 = True
-        if self.num_nest == 2:
-            self.run_nest1 = True
-            self.run_nest2 = True
-        if self.num_nest == 3:
-            self.run_nest1 = True
-            self.run_nest2 = True
-            self.run_nest3 = True
 
         # output points
         self.x_out = []
         self.y_out = []
 
-        # shoreline for plotting
-        self.np_shore = np.array([])
-        self.np_shore_nested = np.array([])
-        
-        # computation time step (equal to the storm dt interpolation)
-        self.dt_comp = None
-        self.dt_comp_nested = None
-        
-#        # bound limits of the general mesh vortex
-#        self.vortex_max = None
-#        self.vortex_min = None
-#        
-#        # save plots
-#        self.plot_vortex = None
-#        self.plot_track = None
-        
+    def set_main_mesh(self, sm):
+        'Set main mesh, sm - SwanMesh object'
+
+        # default file ids
+        sm.depth_fn = 'depth_main.dat'
+        sm.output_fn = 'output_main.mat'
+
+        self.mesh_main = sm
+
+    def set_nested_mesh_list(self, sm_list):
+        'Set project nested mesh list, sm_list - SwanMesh objects list'
+
+        l_nested  = []
+        for c, sm_n in enumerate(sm_list):
+
+            # default file ids
+            sm_n.depth_fn = 'depth_nest{0}.dat'.format(c)
+            sm_n.output_fn = 'output_nest{0}.mat'.format(c)
+
+            l_nested.append(sm_n)
+
+        self.mesh_nested_list = l_nested
+
 
 class SwanWrap(object):
     'SWAN numerical model wrap for multi-case handling'
@@ -210,22 +168,10 @@ class SwanWrap(object):
             # run case main mesh
             self.run(p_run)
 
-            # TODO: integrate "num_nest"
-
-            # run case nested mesh (optional)
-            r_ns = [
-                self.proj.run_nest1,
-                self.proj.run_nest2,
-                self.proj.run_nest3,
-            ]
-            i_ns = [
-                'input_nest1.swn',
-                'input_nest2.swn',
-                'input_nest3.swn'
-            ]
-            for r_n, i_n in zip(r_ns, i_ns):
-                if r_n:
-                    self.run(p_run, input_file=i_n)
+            # run nested meshes
+            for c, mesh_n in enumerate(self.proj.mesh_nested_list):
+                input_nested = 'input_nest{0}.swn'.format(c)
+                self.run(p_run, input_file=input_nested)
 
             # log
             p = op.basename(p_run)
@@ -271,101 +217,6 @@ class SwanWrap(object):
 
         bash_cmd(cmd)
 
-#        # run nested meshes if activated
-#        if self.proj.nested == True:
-#            for i in np.arange(0,self.proj.num_nest):
-#                cmdn = 'cd {0} && ln -sf input_nest{1}.swn INPUT && {2} INPUT'.format(
-#                    p_run, i+1, self.bin)
-#                bash_cmd(cmdn)
-
-
-    def extract_output(self, mesh=None):
-        '''
-        exctract output from all cases generated by "build_cases_stat"
-
-        return xarray.Dataset (uses new dim "case" to join output)
-        '''
-
-        # select main or nested mesh
-        if mesh == None: mesh = self.proj.mesh_main
-
-        # get sorted execution folders
-        run_dirs = self.get_run_folders()
-
-        # exctract output case by case and concat in list
-        l_out = []
-        for p_run in run_dirs:
-
-            # read output file
-            xds_case_out = self.io.output_case(p_run, mesh)
-            l_out.append(xds_case_out)
-
-        # concatenate xarray datasets (new dim: case)
-        xds_out = xr.concat(l_out, dim='case')
-
-        return(xds_out)
-
-    def extract_output_nonstat(self, output_run, case_ini=None, case_end=None, num=None):
-        '''
-        exctract output from all cases generated by "build_cases_nonstat"
-        (it is possible to choose which cases to extract)
-
-        return xarray.Dataset (uses new dim "case" to join output)
-        '''
-        
-        # TODO: integrate mesh input as for "extract_output"
-        # in the code below I can choose which cases to extract separately 
-        
-        # get sorted execution folders
-        run_dirs = self.get_run_folders()
-        if (case_ini != None) & (case_end != None):   
-            run_dirs=run_dirs[case_ini:case_end]
-
-        # exctract output case by case and concat in list
-        l_out = []
-        for p_run in run_dirs:
-
-            # read output file
-            xds_case_out = self.io.output_case_nonstat(p_run, output_run, num)
-            l_out.append(xds_case_out)
-
-        # concatenate xarray datasets (new dim: case)
-        xds_out = xr.concat(l_out, dim='case')
-        if (case_ini != None) & (case_end != None):   
-            xds_out = xds_out.assign(case=np.arange(case_ini, case_end))
-
-        return(xds_out)
-
-    def extract_output_points(self, case_ini=None, case_end=None):
-        '''
-        extract output from points all cases table_outpts.dat
-        (it is possible to choose which cases to extract)
-
-        return xarray.Dataset (uses new dim "case" to join output)
-        '''
-        
-        # TODO: integrate mesh, same as for "extract_output"
-
-        # get sorted execution folders
-        run_dirs = self.get_run_folders()
-        if (case_ini != None) & (case_end != None):   
-            run_dirs=run_dirs[case_ini:case_end]
-
-        # exctract output case by case and concat in list
-        l_out = []
-        for p_run in run_dirs:
-
-            # read output file
-            xds_case_out = self.io.output_points(p_run)
-            l_out.append(xds_case_out)
-
-        # concatenate xarray datasets (new dim: case)
-        xds_out = xr.concat(l_out, dim='case')
-        if (case_ini != None) & (case_end != None):   
-            xds_out = xds_out.assign(case=np.arange(case_ini, case_end))
-
-        return(xds_out)
-
 
 class SwanWrap_STAT(SwanWrap):
     'SWAN numerical model wrap for STATIONARY multi-case handling'
@@ -390,6 +241,57 @@ class SwanWrap_STAT(SwanWrap):
             # build stat case 
             case_id = '{0:04d}'.format(ix)
             self.io.build_case(case_id, ws)
+
+    def extract_output(self, mesh=None):
+        '''
+        exctract output for swan stationary cases
+
+        return xarray.Dataset (uses new dim "case" to join output)
+        '''
+
+        # select main or nested mesh
+        if mesh == None: mesh = self.proj.mesh_main
+
+        # get sorted execution folders
+        run_dirs = self.get_run_folders()
+
+        # exctract output case by case and concat in list
+        l_out = []
+        for p_run in run_dirs:
+
+            # read output file
+            xds_case_out = self.io.output_case(p_run, mesh)
+            l_out.append(xds_case_out)
+
+        # concatenate xarray datasets (new dim: case)
+        xds_out = xr.concat(l_out, dim='case')
+
+        return(xds_out)
+
+    def extract_output_points(self):
+        '''
+        extract output from points all cases table_outpts.dat
+
+        return xarray.Dataset (uses new dim "case" to join output)
+        '''
+
+        # TODO: integrate mesh, same as for "extract_output"
+
+        # get sorted execution folders
+        run_dirs = self.get_run_folders()
+
+        # exctract output case by case and concat in list
+        l_out = []
+        for p_run in run_dirs:
+
+            # read output file
+            xds_case_out = self.io.output_points(p_run)
+            l_out.append(xds_case_out)
+
+        # concatenate xarray datasets (new dim: case)
+        xds_out = xr.concat(l_out, dim='case')
+
+        return(xds_out)
 
 
 class SwanWrap_NONSTAT(SwanWrap):
@@ -430,3 +332,63 @@ class SwanWrap_NONSTAT(SwanWrap):
                 make_waves=make_waves, make_winds=make_winds
             )
 
+    def extract_output(self, output_run, case_ini=None, case_end=None, num=None):
+        '''
+        exctract output from non stationary cases
+        (it is possible to choose which cases to extract)
+
+        return xarray.Dataset (uses new dim "case" to join output)
+        '''
+
+        # TODO: integrate mesh input as for "extract_output"
+        # in the code below I can choose which cases to extract separately 
+
+        # get sorted execution folders
+        run_dirs = self.get_run_folders()
+        if (case_ini != None) & (case_end != None):
+            run_dirs=run_dirs[case_ini:case_end]
+
+        # exctract output case by case and concat in list
+        l_out = []
+        for p_run in run_dirs:
+
+            # read output file
+            xds_case_out = self.io.output_case_nonstat(p_run, output_run, num)
+            l_out.append(xds_case_out)
+
+        # concatenate xarray datasets (new dim: case)
+        xds_out = xr.concat(l_out, dim='case')
+        if (case_ini != None) & (case_end != None):
+            xds_out = xds_out.assign(case=np.arange(case_ini, case_end))
+
+        return(xds_out)
+
+    def extract_output_points(self, case_ini=None, case_end=None):
+        '''
+        extract output from points all cases table_outpts.dat
+        (it is possible to choose which cases to extract)
+
+        return xarray.Dataset (uses new dim "case" to join output)
+        '''
+
+        # TODO: integrate mesh, same as for "extract_output"
+
+        # get sorted execution folders
+        run_dirs = self.get_run_folders()
+        if (case_ini != None) & (case_end != None):   
+            run_dirs=run_dirs[case_ini:case_end]
+
+        # exctract output case by case and concat in list
+        l_out = []
+        for p_run in run_dirs:
+
+            # read output file
+            xds_case_out = self.io.output_points(p_run)
+            l_out.append(xds_case_out)
+
+        # concatenate xarray datasets (new dim: case)
+        xds_out = xr.concat(l_out, dim='case')
+        if (case_ini != None) & (case_end != None):   
+            xds_out = xds_out.assign(case=np.arange(case_ini, case_end))
+
+        return(xds_out)
