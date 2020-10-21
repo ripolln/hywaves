@@ -20,7 +20,7 @@ sys.path.insert(0, op.join(op.dirname(__file__), '..', '..'))
 
 # swan wrap module 
 from hywaves.swan.storms import track_site_parameters
-from hywaves.swan.wrap import SwanProject, SwanWrap_NONSTAT
+from hywaves.swan.wrap import SwanProject, SwanMesh, SwanWrap_NONSTAT
 
 
 # --------------------------------------
@@ -106,9 +106,10 @@ sp.storm = 'name'
 
 # --------------------------------------
 # SWAN main mesh
+main_mesh = SwanMesh()
 
 # depth grid description (input bathymetry grid)
-sp.mesh_main.dg = {
+main_mesh.dg = {
     'xpc': lon[0],                             # x origin
     'ypc': lat[0],                             # y origin
     'alpc': 0,                                 # x-axis direction 
@@ -121,10 +122,10 @@ sp.mesh_main.dg = {
 }
 
 # depth value (from file)
-sp.mesh_main.depth = depth
+main_mesh.depth = depth
 
 # computational grid description
-sp.mesh_main.cg = {
+main_mesh.cg = {
     'xpc': 163.5,
     'ypc': 0.5,
     'alpc': 0,
@@ -136,30 +137,32 @@ sp.mesh_main.cg = {
     'dyinp': 13/int(round(13/0.136)),
 }
 
+sp.set_main_mesh(main_mesh)
+
 
 # --------------------------------------
 # SWAN nested meshes
-sp.nested = True
-sp.num_nest = 2
 
 
 # NEST 1
+mesh_nest1 = SwanMesh()
+
 # depth grid description (input bathymetry grid)
 # grid resolution of 5km (=0.0453º)
 res1 = 0.04533
-sp.mesh_nest1.dg = sp.mesh_main.dg
+mesh_nest1.dg = main_mesh.dg
 
 # depth value (from file)
-sp.mesh_nest1.depth = sp.mesh_main.depth
+mesh_nest1.depth = main_mesh.depth
 
 # computational grid description
-sp.mesh_nest1.cg = {
+mesh_nest1.cg = {
     'xpc': 168.5,
     'ypc': 5.5,
     'alpc': 0,
     'xlenc': 5.5,
     'ylenc': 3.5,
-    'mxc': int(round(5.5/res1)),    
+    'mxc': int(round(5.5/res1)),
     'myc': int(round(3.5/res1)),
     'dxinp': 5.5/int(round(5.5/res1)),
     'dyinp': 3.5/int(round(3.5/res1)),
@@ -167,28 +170,32 @@ sp.mesh_nest1.cg = {
 
 
 # NEST 2
+mesh_nest2 = SwanMesh()
+
 # depth grid description (input bathymetry grid)
 # grid resolution of 1km (=0.009º)
 res2 = 0.009
-sp.mesh_nest2.dg = sp.mesh_main.dg
+mesh_nest2.dg = main_mesh.dg
 
 # depth value (from file)
-sp.mesh_nest2.depth = sp.mesh_main.depth
+mesh_nest2.depth = main_mesh.depth
 
 # computational grid description
-sp.mesh_nest2.cg = {
+mesh_nest2.cg = {
     'xpc': 170.9,
     'ypc': 6.8,
     'alpc': 0,
     'xlenc': 1.2,
     'ylenc': 0.7,
-    'mxc': int(round(1.2/res2)),    
+    'mxc': int(round(1.2/res2)),
     'myc': int(round(0.7/res2)),
     'dxinp': 1.2/int(round(1.2/res2)),
     'dyinp': 0.7/int(round(0.7/res2)),
 }
 
-# TODO: define "sp.lon_nested", "sp.lat_nested"
+
+# set project nested mesh list
+sp.set_nested_mesh_list([mesh_nest1, mesh_nest2])
 
 
 # --------------------------------------

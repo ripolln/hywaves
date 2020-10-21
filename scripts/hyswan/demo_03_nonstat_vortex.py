@@ -20,7 +20,7 @@ sys.path.insert(0, op.join(op.dirname(__file__), '..', '..'))
 
 # swan wrap module 
 from hywaves.swan.storms import track_from_parameters
-from hywaves.swan.wrap import SwanProject, SwanWrap_NONSTAT
+from hywaves.swan.wrap import SwanProject, SwanMesh, SwanWrap_NONSTAT
 
 
 # --------------------------------------
@@ -82,9 +82,10 @@ sp = SwanProject(p_proj, n_proj)
 
 # --------------------------------------
 # SWAN main mesh
+main_mesh = SwanMesh()
 
 # depth grid description (input bathymetry grid)
-sp.mesh_main.dg = {
+main_mesh.dg = {
     'xpc': lon[0],                             # x origin
     'ypc': lat[0],                             # y origin
     'alpc': 0,                                 # x-axis direction 
@@ -97,10 +98,10 @@ sp.mesh_main.dg = {
 }
 
 # depth value (from file)
-sp.mesh_main.depth = depth
+main_mesh.depth = depth
 
 # computational grid description
-sp.mesh_main.cg = {
+main_mesh.cg = {
     'xpc': 160,
     'ypc': 2,
     'alpc': 0,
@@ -111,6 +112,8 @@ sp.mesh_main.cg = {
     'dxinp': 1,
     'dyinp': 1,
 }
+
+sp.set_main_mesh(main_mesh)
 
 
 # SWAN parameters (sea level, jonswap gamma)
