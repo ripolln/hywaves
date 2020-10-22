@@ -634,7 +634,7 @@ class SwanIO_NONSTAT(SwanIO):
         # computational grid
         t += 'CGRID REGULAR {0} {1} {2} {3} {4} {5} {6} CIRCLE 72 0.03 1.00 \n$\n'.format(
             mm.cg['xpc'], mm.cg['ypc'], mm.cg['alpc'], mm.cg['xlenc'],
-            mm.cg['ylenc'], mm.cg['mxc'], mm.cg['myc'])
+            mm.cg['ylenc'], mm.cg['mxc']-1, mm.cg['myc']-1)
 
         # bathymetry
         t += 'INPGRID BOTTOM REGULAR {0} {1} {2} {3} {4} {5} {6}\n'.format(
@@ -646,15 +646,15 @@ class SwanIO_NONSTAT(SwanIO):
 
         # level
         t += 'INPGRID  WLEV  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} {8} MIN {9}\n'.format(
-            mm.cg['xpc'], mm.cg['ypc'], mm.cg['alpc'], mm.cg['mxc'],
-            mm.cg['myc'], mm.cg['dxinp'], mm.cg['dyinp'], t0_iso, dt_comp, t1_iso)
+            mm.cg['xpc'], mm.cg['ypc'], mm.cg['alpc'], mm.cg['mxc']-1,
+            mm.cg['myc']-1, mm.cg['dxinp'], mm.cg['dyinp'], t0_iso, dt_comp, t1_iso)
         t += "READINP  WLEV 1. SERIES '{0}' 3 0 FREE\n$\n".format('series_level.dat')
 
         # wind
         if make_winds:
             t += 'INPGRID  WIND  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} {8} MIN {9}\n'.format(
-                mm.cg['xpc'], mm.cg['ypc'], mm.cg['alpc'], mm.cg['mxc'],
-                mm.cg['myc'], mm.cg['dxinp'], mm.cg['dyinp'], t0_iso, dt_comp, t1_iso)
+                mm.cg['xpc'], mm.cg['ypc'], mm.cg['alpc'], mm.cg['mxc']-1,
+                mm.cg['myc']-1, mm.cg['dxinp'], mm.cg['dyinp'], t0_iso, dt_comp, t1_iso)
             t += "READINP  WIND 1. SERIES '{0}' 3 0 FREE\n$\n".format('series_wind.dat')
 
         # waves boundary conditions
@@ -667,6 +667,7 @@ class SwanIO_NONSTAT(SwanIO):
         # numerics & physics
         t += 'WIND DRAG WU\n'
         t += 'GEN3 ST6 5.7E-7 8.0E-6 4.0 4.0 UP HWANG VECTAU TRUE10\n'
+        t += 'SSWELL\n'
         t += 'QUAD iquad=8\n'
         t += 'WCAP\n'
         if not coords_spherical:
@@ -674,7 +675,7 @@ class SwanIO_NONSTAT(SwanIO):
         t += 'BREA\n'
         t += 'FRICTION JONSWAP\n$\n'
         t += 'TRIADS\n'
-#        t += 'DIFFRAC\n'
+        t += 'DIFFRAC\n'
 
         # numerics 
         t += 'PROP BSBT\n$\n'
@@ -695,8 +696,11 @@ class SwanIO_NONSTAT(SwanIO):
                 nout_0, nout_1, t0_iso, dt_comp)
 
         # output
-        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR OUT {1} {2} MIN\n$\n".format(
-            mm.output_fn, t0_iso, dt_comp)
+        # TODO: revisar el delta_time
+        #t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR OUT {1} {2} MIN\n$\n".format(
+        #    mm.output_fn, t0_iso, dt_comp)
+        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR OUT {1} 1.0 HR\n$\n".format(
+            mm.output_fn, t0_iso)
 
         # output points
         if not x_out or not y_out:
