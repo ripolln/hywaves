@@ -50,7 +50,7 @@ class SwanMesh(object):
         # grid parameters
         self.cg = d_grid_template.copy()  # computational grid
         self.dg = d_grid_template.copy()  # depth grid
-        self.dg_idla = 3  # 1/3 input swan parameter, handles read order at readinp
+        self.dg_idla = 1  # 1/3 input swan parameter, handles read order at readinp
 
     def export_dat(self, p_case):
         'exports depth values to .dat file'
@@ -392,3 +392,4 @@ class SwanWrap_NONSTAT(SwanWrap):
             xds_out = xds_out.assign(case=np.arange(case_ini, case_end))
 
         return(xds_out)
+
