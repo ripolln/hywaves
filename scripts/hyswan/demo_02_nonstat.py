@@ -45,7 +45,7 @@ waves = xds_waves.to_dataframe()  # xarray --> pandas
 
 # now we generate the wave event 
 vs = ['hs', 't02', 'dir', 'spr', 'U10', 'V10']
-we = waves['2000-01-02 00:00':'2000-01-02 02:00'][vs]
+we = waves['2000-01-02 00:00':'2000-01-02 03:00'][vs]
 we['level'] = 0 # no water level data 
 we['tide'] = 0 # no tide data 
 we.rename(columns={'t02': 'per'}, inplace=True)  # rename for swan
@@ -72,12 +72,12 @@ main_mesh.dg = {
     'xpc': 0,       # x origin
     'ypc': 0,       # y origin
     'alpc': 0,      # x-axis direction 
-    'xlenc': 700,   # grid length in x
-    'ylenc': 1000,  # grid length in y
+    'xlenc': 400,   # grid length in x
+    'ylenc': 400,  # grid length in y
     'mxc': 1,       # number mesh x
     'myc': 1,       # number mesh y
-    'dxinp': 700,   # size mesh x
-    'dyinp': 1000,  # size mesh y
+    'dxinp': 400,   # size mesh x
+    'dyinp': 400,  # size mesh y
 }
 
 # depth value
@@ -88,11 +88,11 @@ main_mesh.cg = {
     'xpc': 0,
     'ypc': 0,
     'alpc': 0,
-    'xlenc': 700,
-    'ylenc': 1000,
-    'mxc': 100,
-    'myc': 50,
-    'dxinp': 7,
+    'xlenc': 400,
+    'ylenc': 400,
+    'mxc': 40,
+    'myc': 20,
+    'dxinp': 10,
     'dyinp': 20,
 }
 

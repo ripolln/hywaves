@@ -332,7 +332,7 @@ class SwanWrap_NONSTAT(SwanWrap):
                 make_waves=make_waves, make_winds=make_winds
             )
 
-    def extract_output(self, output_run, case_ini=None, case_end=None, num=None):
+    def extract_output(self, case_ini=None, case_end=None, mesh=None):
         '''
         exctract output from non stationary cases
         (it is possible to choose which cases to extract)
@@ -340,8 +340,8 @@ class SwanWrap_NONSTAT(SwanWrap):
         return xarray.Dataset (uses new dim "case" to join output)
         '''
 
-        # TODO: integrate mesh input as for "extract_output"
-        # in the code below I can choose which cases to extract separately 
+        # select main or nested mesh
+        if mesh == None: mesh = self.proj.mesh_main
 
         # get sorted execution folders
         run_dirs = self.get_run_folders()
@@ -353,7 +353,7 @@ class SwanWrap_NONSTAT(SwanWrap):
         for p_run in run_dirs:
 
             # read output file
-            xds_case_out = self.io.output_case_nonstat(p_run, output_run, num)
+            xds_case_out = self.io.output_case(p_run, mesh)
             l_out.append(xds_case_out)
 
         # concatenate xarray datasets (new dim: case)
@@ -375,7 +375,7 @@ class SwanWrap_NONSTAT(SwanWrap):
 
         # get sorted execution folders
         run_dirs = self.get_run_folders()
-        if (case_ini != None) & (case_end != None):   
+        if (case_ini != None) & (case_end != None):
             run_dirs=run_dirs[case_ini:case_end]
 
         # exctract output case by case and concat in list

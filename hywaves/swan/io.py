@@ -576,14 +576,13 @@ class SwanIO_NONSTAT(SwanIO):
         with open(save, 'w') as f:
             f.write(txt)
 
-    def make_input(self, p_file, id_run, time, dt_comp=5, make_waves=True,
+    def make_input(self, p_file, id_run, time, make_waves=True,
                    make_winds=True, wvs_bnd=['N', 'E', 'W', 'S']):
         '''
         Writes input.swn file from waves event for non-stationary execution
 
         p_file     - input.swn file path
         time       - event time at swan iso format
-        dt_comp    - computational time step data (minutes)
 
         make_waves - activates waves input files generation (at waves_bnd)
         make_winds - activates wind input files generation
@@ -594,6 +593,11 @@ class SwanIO_NONSTAT(SwanIO):
         # event time (swan iso format)
         t0_iso = time[0]
         t1_iso = time[-1]
+
+        # TODO: delta time computacion
+        dt_comp = 5
+
+        # TODO: preparar/move delta times: dt_winds, dt_level, dt_output
 
         # .swn file parameters
         sea_level = self.proj.params['sea_level']
@@ -645,14 +649,16 @@ class SwanIO_NONSTAT(SwanIO):
             mm.depth_fn, mm.dg_idla)
 
         # level
-        t += 'INPGRID  WLEV  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} {8} MIN {9}\n'.format(
+        # TODO: gestionar delta_t level
+        t += 'INPGRID  WLEV  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} 1 HR {9}\n'.format(
             mm.cg['xpc'], mm.cg['ypc'], mm.cg['alpc'], mm.cg['mxc']-1,
             mm.cg['myc']-1, mm.cg['dxinp'], mm.cg['dyinp'], t0_iso, dt_comp, t1_iso)
         t += "READINP  WLEV 1. SERIES '{0}' 3 0 FREE\n$\n".format('series_level.dat')
 
         # wind
+        # TODO: gestionar delta_t winds
         if make_winds:
-            t += 'INPGRID  WIND  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} {8} MIN {9}\n'.format(
+            t += 'INPGRID  WIND  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} 1 HR {9}\n'.format(
                 mm.cg['xpc'], mm.cg['ypc'], mm.cg['alpc'], mm.cg['mxc']-1,
                 mm.cg['myc']-1, mm.cg['dxinp'], mm.cg['dyinp'], t0_iso, dt_comp, t1_iso)
             t += "READINP  WIND 1. SERIES '{0}' 3 0 FREE\n$\n".format('series_wind.dat')
@@ -696,7 +702,7 @@ class SwanIO_NONSTAT(SwanIO):
                 nout_0, nout_1, t0_iso, dt_comp)
 
         # output
-        # TODO: revisar el delta_time
+        # TODO: revisar el delta_time output
         #t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR OUT {1} {2} MIN\n$\n".format(
         #    mm.output_fn, t0_iso, dt_comp)
         t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR OUT {1} 1.0 HR\n$\n".format(
@@ -729,7 +735,7 @@ class SwanIO_NONSTAT(SwanIO):
 
         # TODO: imitar a SwanIO_STAT para generar el input_nestX.swn
 
-    def build_case(self, case_id, waves_event, storm_track=None, dt_comp=5,
+    def build_case(self, case_id, waves_event, storm_track=None,
                    make_waves=True, make_winds=True, waves_bnd=['N', 'E', 'W', 'S']):
         '''
         Build SWAN NONSTAT case input files for given wave dataset
@@ -785,7 +791,6 @@ class SwanIO_NONSTAT(SwanIO):
         self.make_input(
             op.join(p_case, 'input.swn'), case_id, time_swan,
             make_waves = make_waves, make_winds = make_winds,
-            dt_comp=dt_comp,
         )
 
         # optional nested mesh depth and input files
