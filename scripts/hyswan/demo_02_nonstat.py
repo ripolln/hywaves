@@ -98,16 +98,74 @@ main_mesh.cg = {
 
 sp.set_main_mesh(main_mesh)
 
+# --------------------------------------
+# SWAN nest1 mesh
+mesh_nest1 = SwanMesh()
 
-# SWAN parameters (sea level, jonswap gamma)
-sp.params = {
-    'sea_level': 4,
-    'jonswap_gamma': 1.9,
-    'cdcap': None,
-    'coords_spherical': None,
-    'waves_period': 'MEAN',
-    'maxerr': None,
+# depth grid description
+mesh_nest1.dg = {
+    'xpc': 50,
+    'ypc': 100,
+    'alpc': 0,
+    'xlenc': 80,
+    'ylenc': 100,
+    'mxc': 8,
+    'myc': 10,
+    'dxinp': 10,
+    'dyinp': 10,
 }
+
+# depth value
+mesh_nest1.depth = np.ones((10,8)) * 158
+
+# computational grid description
+mesh_nest1.cg = {
+    'xpc': 50,
+    'ypc': 100,
+    'alpc': 0,
+    'xlenc': 80,
+    'ylenc': 100,
+    'mxc': 8,
+    'myc': 10,
+    'dxinp': 10,
+    'dyinp': 10,
+}
+
+sp.set_nested_mesh_list([mesh_nest1])
+
+
+# --------------------------------------
+# SWAN parameters (sea level, jonswap gamma)
+input_params = {
+    'set_level': 4,
+    'set_convention': 'NAUTICAL',
+
+    'boundw_jonswap': 1.9,
+    'boundw_period': 'MEAN',
+
+    'boundn_mode': 'CLOSED',
+
+    'wind_deltinp': '1 HR',
+    'level_deltinp': '1 HR',
+
+    'compute_deltc': '5 MIN',
+    'output_deltt': '10 MIN',
+
+    'physics':[
+        'WIND DRAG WU',
+        'GEN3 ST6 5.7E-7 8.0E-6 4.0 4.0 UP HWANG VECTAU TRUE10',
+        'QUAD iquad=8',
+        'WCAP',
+        #'SETUP',  # not compatible with spherical coords
+        'TRIADS',
+        'DIFFRAC',
+    ],
+
+    'numerics':[
+        'PROP BSBT',
+    ]
+}
+sp.set_params(input_params)
 
 
 # --------------------------------------
@@ -126,3 +184,7 @@ xds_out_main = sw.extract_output()
 print('\noutput main mesh')
 print(xds_out_main)
 
+# extract output from nest1 mesh 
+xds_out_nest1 = sw.extract_output(mesh=sp.mesh_nested_list[0])
+print('\noutput nest1 mesh')
+print(xds_out_nest1)

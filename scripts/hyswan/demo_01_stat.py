@@ -129,14 +129,27 @@ sp.set_nested_mesh_list([mesh_nest1])
 
 # --------------------------------------
 # SWAN parameters (sea level, jonswap gamma)
+input_params = {
+    'set_level': 4,
+    'set_convention': 'NAUTICAL',
 
-sp.params = {
-    'sea_level': 4,
-    'jonswap_gamma': 1.9,
-    'coords_spherical': None,   # None, 'GCM', 'CCM' 
-    'waves_period': 'MEAN',     # 'PEAK / MEAN'
-    'nested_bounds': 'CLOSED',  # 'CLOSED' / 'OPEN'
+    'boundw_jonswap': 1.9,
+    'boundw_period': 'MEAN',
+
+    'boundn_mode': 'CLOSED',
+
+    'compute_deltc': '5 MIN',
+
+    'physics':[
+        'FRICTION JONSWAP',
+        'BREAKING',
+    ],
+
+    'numerics':[
+        'OFF QUAD',
+    ]
 }
+sp.set_params(input_params)
 
 
 # --------------------------------------

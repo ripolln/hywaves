@@ -28,13 +28,46 @@ d_grid_template = {
 
 # swan input parameters template
 d_params_template = {
-    'sea_level': None,
-    'jonswap_gamma': None,
-    'coords_spherical': None,  # None, 'GCM', 'CCM'
-    'cdcap': None,
-    'maxerr': None,            # None, 1, 2, 3
-    'waves_period': None,      # 'PEAK', 'MEAN'
-    'nested_bounds': None,     # 'CLOSED', 'OPEN'
+
+    # SET general parameters
+    'set_level': None,         # increase in water level (m)
+    'set_maxerr': None,        # input data error tolerance: 1 (default), 2, 3
+    'set_cdcap': None,         # max value for wind drag coeff (2.5*10^3): None, value
+    'set_convention': None,    # wind/waves dir convention: 'NAUTICAL', 'CARTESIAN' (default)
+
+    # COORDINATES
+    'coords_mode': None,       # 'CARTESIAN' (default), 'SPHERICAL' 
+    'coords_projection': None, # projection method: 'GCM' (default), 'QC'
+
+    # COMPUTATIONAL GRID
+    'cgrid_mdc': 72,           # spectral circle subdivisions
+    'cgrid_flow': 0.03,        # lowest discrete frequency used in the calculation (Hz) (0.03) 
+    'cgrid_fhigh': 1.00,          # highest discrete frequency used in the calculation (Hz) (1.00) 
+
+    # BOUNDARY WAVES
+    'boundw_jonswap': None,    # jonswap gamma: 3.3 (default)
+    'boundw_period': None,     # waves period: 'PEAK', 'MEAN' 
+
+    # BOUNDARY NESTED
+    'boundn_mode': None,       # input from main mesh to nested mesh: OPEN, CLOSED (default) 
+
+    # PHYSICS: See (http://swanmodel.sourceforge.net/online_doc/swanuse/node28.html)
+    'physics': [],            # list of raw .swn entries
+
+    # NUMERICS: See (http://swanmodel.sourceforge.net/online_doc/swanuse/node29.html)
+    'numerics': [],           # list of raw .swn entries
+
+    # -- exclusive NONSTAT parameters--
+
+    # INPUT GRIDs
+    'wind_deltinp': None,      # wind input delta time: '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
+    'level_deltinp': None,     # level input delta time: '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
+
+    # OUTPUT
+    'output_deltt': None,      # output delta time '5 MIN', '1 HR', ... (us: S
+
+    # COMPUTE
+    'compute_deltc': None,     # computation delta time '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
 }
 
 
@@ -50,10 +83,12 @@ class SwanMesh(object):
         # grid parameters
         self.cg = d_grid_template.copy()  # computational grid
         self.dg = d_grid_template.copy()  # depth grid
-        self.dg_idla = 1  # 1/3 input swan parameter, handles read order at readinp
+        self.dg_idla = 1  # http://swanmodel.sourceforge.net/online_doc/swanuse/node26.html
 
     def export_dat(self, p_case):
         'exports depth values to .dat file'
+
+        # TODO: only compatible with dg_idla = 1 ?
 
         p_export = op.join(p_case, self.depth_fn)
         np.savetxt(p_export, self.depth, fmt='%.2f')
@@ -126,6 +161,13 @@ class SwanProject(object):
             l_nested.append(sm_n)
 
         self.mesh_nested_list = l_nested
+
+    def set_params(self, input_params):
+        'Set project parameters from input dictionary'
+
+        # TODO: test 
+        # update template parameters 
+        self.params = {**self.params, **input_params}
 
 
 class SwanWrap(object):
@@ -301,7 +343,7 @@ class SwanWrap_NONSTAT(SwanWrap):
         super().__init__(swan_proj, SwanIO_NONSTAT)
 
     def build_cases(self, waves_event_list, storm_track_list=None,
-                    make_waves=True, make_winds=True):
+                    make_waves=True, make_winds=True, make_levels=True):
         '''
         generates all files needed for swan non-stationary multi-case execution
 

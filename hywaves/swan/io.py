@@ -14,6 +14,7 @@ from scipy import interpolate
 
 from .geo import geo_distance_azimuth
 
+# TODO: refactor de toda la informacion/ids que se mueven con las mallas
 
 # SWAN INPUT/OUTPUT STAT LIBRARY
 
@@ -31,89 +32,205 @@ class SwanIO(object):
         if not op.isdir(self.proj.p_main): os.makedirs(self.proj.p_main)
         if not op.isdir(self.proj.p_cases): os.makedirs(self.proj.p_cases)
 
+    def output_case(self, p_case, mesh):
+        'read .mat output file from non-stationary and returns xarray.Dataset'
+
+        # extract output from selected mesh
+        p_mat = op.join(p_case, mesh.output_fn)
+        xds_out = self.outmat2xr(p_mat)
+
+        # set X and Y values
+        X, Y = mesh.get_XY()
+        xds_out = xds_out.assign_coords(X=X)
+        xds_out = xds_out.assign_coords(Y=Y)
+
+        # rename to longitude latitude in spherical coords cases
+        coords_mode = self.proj.params['coords_mode']
+        if coords_mode == 'SPHERICAL':
+            xds_out = xds_out.rename({'X':'lon', 'Y':'lat'})
+
+        return xds_out
+
+
+# aux. function to write shared input.swn blocks
+
+def swn_coordinates(proj):
+    'COORDINATES .swn block'
+
+    coords_mode = proj.params['coords_mode']
+    coords_projection = proj.params['coords_projection']
+
+    proj_str = ''
+    if coords_projection: proj_str = '{0}'.format(coords_projection)
+
+    t = ''
+    if coords_mode:
+        t = 'COORDINATES {0} {1}\n'.format(coords_mode, proj_str)
+
+    return t
+
+def swn_set(proj):
+    'SET .swn block'
+
+    set_level = proj.params['set_level']
+    set_maxerr = proj.params['set_maxerr']
+    set_cdcap = proj.params['set_cdcap']
+    set_convention = proj.params['set_convention']
+
+    level_str = ''
+    if set_level: level_str = 'level={0}'.format(set_level)
+    cdcap_str = ''
+    if set_cdcap: cdcap_str = 'cdcap={0}'.format(set_cdcap)
+    maxerr_str = ''
+    if set_maxerr: maxerr_str = 'maxerr={0}'.format(set_maxerr)
+    conv_str = ''
+    if set_convention: conv_str = '{0}'.format(set_convention)
+
+    return 'SET {0} {1} {2} {3}\n$\n'.format(
+        level_str, cdcap_str, maxerr_str, conv_str,
+    )
+
+def swn_computational(proj, mesh):
+    'COMPUTATIONAL GRID .swn block'
+    # only regular grid and full circle spectral directions !!!
+
+    cgrid_mdc = proj.params['cgrid_mdc']
+    cgrid_flow = proj.params['cgrid_flow']
+    cgrid_fhigh = proj.params['cgrid_fhigh']
+
+    # TODO: parametro [msc] se deja ausente?
+    return 'CGRID REGULAR {0} {1} {2} {3} {4} {5} {6} CIRCLE {7} {8} {9} \n$\n'.format(
+        mesh.cg['xpc'], mesh.cg['ypc'], mesh.cg['alpc'],
+        mesh.cg['xlenc'], mesh.cg['ylenc'], mesh.cg['mxc']-1, mesh.cg['myc']-1,
+        cgrid_mdc, cgrid_flow, cgrid_fhigh,
+    )
+
+def swn_bathymetry(mesh, is_nested=False):
+    'BATHYMETRY GRID .swn block'
+
+    # fix nested / main different behaviour
+    mxc = mesh.dg['mxc']
+    myc = mesh.dg['myc']
+    if is_nested:
+        mxc = mxc - 1
+        myc = myc - 1
+
+    t = ''
+    t += 'INPGRID BOTTOM REGULAR {0} {1} {2} {3} {4} {5} {6}\n'.format(
+        mesh.dg['xpc'], mesh.dg['ypc'], mesh.dg['alpc'],
+        mxc, myc, mesh.dg['dxinp'], mesh.dg['dyinp'])
+
+    t += "READINP BOTTOM 1 '{0}' {1} 0 FREE\n$\n".format(
+        mesh.depth_fn, mesh.dg_idla)
+
+    return t
+
+def swn_physics(proj):
+    'PHYSICS .swn block'
+
+    list_physics = proj.params['physics']
+    t = ''
+    for l in list_physics: t += '{0}\n'.format(l)
+    t += '$\n'
+    return t
+
+def swn_numerics(proj):
+    'NUMERICS .swn block'
+
+    list_numerics = proj.params['numerics']
+    t = ''
+    for l in list_numerics: t += '{0}\n'.format(l)
+    t += '$\n'
+    return t
+
 
 class SwanIO_STAT(SwanIO):
     'SWAN numerical model input/output - STATIONARY cases'
 
-    def make_input(self, p_file, id_run, ws, bnd):
+    def make_input(self, p_file, id_run,
+                   mesh,
+                   ws, ttl_run='',
+                   waves_bnd=['N', 'E', 'W', 'S'],
+                   is_nested=False, boundn_file=None):
         '''
         Writes input.swn file from waves sea state for stationary execution
 
-        p_file  - input.swn file path
-        ws      - wave sea state (hs, per, dr, spr)
-        bnd     - wave sea state active boundaries
+        p_file      - input.swn file path
+        ws          - wave sea state (hs, per, dr, spr)
+        waves_bnd     - wave sea state active boundaries
+
+        is_nested   - True for nested meshes
+        nested_bnd  - nested bounds input file
 
         more info: http://swanmodel.sourceforge.net/online_doc/swanuse/node23.html
         '''
-        # TODO: check readinp idla
 
-        # .swn file parameters
-        sea_level = self.proj.params['sea_level']
-        jonswap_gamma = self.proj.params['jonswap_gamma']
-        coords_spherical = self.proj.params['coords_spherical']
-        waves_period = self.proj.params['waves_period']
+        # -- PROJECT --
+        t = "PROJ '{0}' '{1}' '{2}'\n$\n".format(self.proj.name, id_run, ttl_run)
 
-        # main mesh
-        mm = self.proj.mesh_main
-
-        # .swn text file
-        t = "PROJ '{0}' '{1}'\n$\n".format(self.proj.name, id_run)
+        # -- MODE NONSTATIONARY --
         t += 'MODE STAT\n'
 
-        # spherical coordinates (mercator) switch
-        if coords_spherical != None:
-            t += 'COORDINATES SPHER {0}\n'.format(coords_spherical)
+        # -- COORDINATES --
+        t += swn_coordinates(self.proj)
 
-        # sea level
-        t += 'SET level={0}  NAUTICAL\n$\n'.format(sea_level)
+        # -- SET -- 
+        t += swn_set(self.proj)
 
-        # computational grid
-        t += 'CGRID REGULAR {0} {1} {2} {3} {4} {5} {6} CIRCLE 72 0.0345 1.00  34\n$\n'.format(
-            mm.cg['xpc'], mm.cg['ypc'], mm.cg['alpc'], mm.cg['xlenc'],
-            mm.cg['ylenc'], mm.cg['mxc']-1, mm.cg['myc']-1)
+        # -- COMPUTATIONAL GRID --
+        t += swn_computational(self.proj, mesh)
 
-        # bathymetry
-        t += 'INPGRID BOTTOM REGULAR {0} {1} {2} {3} {4} {5} {6}\n'.format(
-            mm.dg['xpc'], mm.dg['ypc'], mm.dg['alpc'], mm.dg['mxc'],
-            mm.dg['myc'], mm.dg['dxinp'], mm.dg['dyinp'])
+        # -- BATHYMETRY --
+        t += swn_bathymetry(mesh, is_nested)
 
-        t += "READINP BOTTOM 1 '{0}' {1} 0 FREE\n$\n".format(
-            mm.depth_fn, mm.dg_idla)
+        # -- SWAN STATIONARY -- INPUT WAVES --
 
-        # waves boundary conditions
-        t += 'BOUND SHAPespec JONswap {0} {1} DSPR DEGR\n'.format(
-            jonswap_gamma, waves_period)
-        for ic in bnd:
-            t += "BOUN SIDE {0} CONstant PAR {1:.3f} {2:.3f} {3:.3f} {4:.3f}\n".format(
-                ic, ws.hs, ws.per, ws.dir, ws.spr)
-        t += "$\n"
+        # MAIN mesh - boundary waves
+        if not is_nested:
+            boundw_jonswap = self.proj.params['boundw_jonswap']
+            boundw_period = self.proj.params['boundw_period']
 
-        # numerics
-        t += 'OFF QUAD\n'
-        # t += 'PROP BSBT\n'
-        # t += 'WCAP\n'
-        t += 'BREA\n'
-        t += 'FRICTION JONSWAP\n$\n'
+            t += 'BOUND SHAPespec JONswap {0} {1} DSPR DEGR\n'.format(
+                boundw_jonswap, boundw_period)
+            for ic in waves_bnd:
+                t += "BOUN SIDE {0} CONstant PAR {1:.3f} {2:.3f} {3:.3f} {4:.3f}\n".format(
+                    ic, ws.hs, ws.per, ws.dir, ws.spr)
+            t += '$\n'
 
-        # optional nested meshes
-        for c, mesh_n in enumerate(self.proj.mesh_nested_list):
-            nout_0 = 'nest{0}'.format(c)
-            nout_1 = 'bounds_nest{0}.dat'.format(c)
+        # NESTED mesh
+        else:
+            boundn_mode = self.proj.params['boundn_mode']
+            t += "BOUN NEST '{0}' {1}\n".format(boundn_file, boundn_mode)
+            t += '$\n'
 
-            t += "NGRID '{0}' {1} {2} {3} {4} {5} {6} {7}\n".format(
-                nout_0, mesh_n.cg['xpc'], mesh_n.cg['ypc'], mesh_n.cg['alpc'],
-                mesh_n.cg['xlenc'], mesh_n.cg['ylenc'],
-                np.int32(mesh_n.cg['xlenc']/mm.cg['dxinp']),
-                np.int32(mesh_n.cg['ylenc']/mm.cg['dyinp'])
-            )
-            t += "NESTOUT '{0}' '{1}'\n".format(nout_0, nout_1)
+        # -- PHYSICS --
+        t += swn_physics(self.proj)
 
-        # output
+        # -- NUMERICS --
+        t += swn_numerics(self.proj)
+
+        # -- OUTPUT: NESTED MESHES  -- 
+        if not is_nested:
+            dt_out = self.proj.params['output_deltt']
+            for c, mesh_n in enumerate(self.proj.mesh_nested_list):
+                nout_0 = 'nest{0}'.format(c)
+                nout_1 = 'bounds_nest{0}.dat'.format(c)
+
+                t += "NGRID '{0}' {1} {2} {3} {4} {5} {6} {7}\n".format(
+                    nout_0, mesh_n.cg['xpc'], mesh_n.cg['ypc'], mesh_n.cg['alpc'],
+                    mesh_n.cg['xlenc'], mesh_n.cg['ylenc'],
+                    np.int32(mesh_n.cg['xlenc']/mesh.cg['dxinp']),
+                    np.int32(mesh_n.cg['ylenc']/mesh.cg['dyinp'])
+                )
+                t += "NESTOUT '{0}' '{1}' \n$\n".format(
+                    nout_0, nout_1)
+
+        # -- OUTPUT: BLOCK  -- 
         t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR\n$\n".format(
-            mm.output_fn,
+            mesh.output_fn,
         )
 
-        # compute
+        # -- COMPUTE --
         t += 'TEST  1,0\n'
         t += 'COMPUTE \n'
         t += 'STOP\n$\n'
@@ -130,75 +247,7 @@ class SwanIO_STAT(SwanIO):
             )
         )
 
-    def make_input_nested(self, p_file, id_run, sm_nested, sm_bound_file):
-        '''
-        Writes input_nested.swn file from waves sea state for stationary execution
-
-        p_file     - input_nestedN.swn file path
-        sm_nested  - nested SwanMesh object
-        '''
-
-        # TODO check myc-1, mxc -1 
-
-        # .swn file parameters
-        sea_level = self.proj.params['sea_level']
-        coords_spherical = self.proj.params['coords_spherical']
-        nested_bounds = self.proj.params['nested_bounds']
-
-        # .swn text file
-        t = "PROJ '{0}' '{1}'\n$\n".format(self.proj.name, id_run)
-        t += 'MODE STAT\n'
-
-        # spherical coordinates (mercator) switch
-        if coords_spherical != None:
-            t += 'COORDINATES SPHER {0}\n'.format(coords_spherical)
-
-        t += 'SET level={0}  NAUTICAL\n$\n'.format(sea_level)
-
-        # computational grid
-        t += 'CGRID REGULAR {0} {1} {2} {3} {4} {5} {6} CIRCLE 72 0.03558410 1.00  35\n$\n'.format(
-            sm_nested.cg['xpc'], sm_nested.cg['ypc'], sm_nested.cg['alpc'],
-            sm_nested.cg['xlenc'], sm_nested.cg['ylenc'],
-            sm_nested.cg['mxc']-1, sm_nested.cg['myc']-1)
-
-        # bathymetry
-        t += 'INPGRID BOTTOM REGULAR {0} {1} {2} {3} {4} {5} {6}\n'.format(
-            sm_nested.dg['xpc'], sm_nested.dg['ypc'], sm_nested.dg['alpc'],
-            sm_nested.dg['mxc']-1, sm_nested.dg['myc']-1,
-            sm_nested.dg['dxinp'], sm_nested.dg['dyinp'])
-
-        t += "READINP BOTTOM 1 '{0}' {1} 0 FREE\n$\n".format(
-            sm_nested.depth_fn, sm_nested.dg_idla)
-
-        # Boundary Conditions
-        t += "BOUN NEST '{0}' {1}\n".format(sm_bound_file, nested_bounds)
-
-        #  wind file
-        t += "$\n"
-
-        # numerics
-        t += 'OFF QUAD\n'
-        # t += 'GEN1\n'
-        # t += 'PROP BSBT\n'
-        # t += 'WCAP\n'
-        t += 'BREA\n'
-        t += 'FRICTION JONSWAP\n$\n'
-
-        # output
-        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR\n$\n".format(
-            sm_nested.output_fn,
-        )
-
-        # compute
-        t += 'TEST  1,0\n'
-        t += 'COMPUTE \n'
-        t += 'STOP\n$\n'
-
-        # write file:
-        with open(p_file, 'w') as f:
-            f.write(t)
-
-    def build_case(self, case_id, waves_ss, bnd=['N', 'E', 'W', 'S']):
+    def build_case(self, case_id, waves_ss, waves_bnd=['N', 'E', 'W', 'S']):
         '''
         Build SWAN STAT case input files for given wave sea state (hs, per, dir, spr)
 
@@ -209,24 +258,31 @@ class SwanIO_STAT(SwanIO):
 
         # SWAN case path
         p_case = op.join(self.proj.p_cases, case_id)
-
-        # make execution dir
         if not op.isdir(p_case): os.makedirs(p_case)
 
-        # make depth file for main mesh
-        self.proj.mesh_main.export_dat(p_case)
+        # MAIN mesh
+        self.proj.mesh_main.export_dat(p_case)  # export main depth file
 
         # make input.swn file
-        self.make_input(op.join(p_case, 'input.swn'), case_id, waves_ss, bnd)
+        self.make_input(
+            op.join(p_case, 'input.swn'), case_id,
+            self.proj.mesh_main,
+            waves_ss,
+            waves_bnd = waves_bnd,
+        )
 
-        # optional nested mesh depth and input files
-        for c, mesh_n in enumerate(self.proj.mesh_nested_list):
-            input_nested = 'input_nest{0}.swn'.format(c)
-            bound_file = 'bounds_nest{0}.dat'.format(c)
+        # NESTED meshes 
+        for c, mesh_nested in enumerate(self.proj.mesh_nested_list):
 
-            mesh_n.export_dat(p_case)
-            self.make_input_nested(op.join(p_case, input_nested), case_id,
-                                   mesh_n, bound_file)
+            mesh_nested.export_dat(p_case)  # export nested depth file
+
+            # make input_nestX.swn file
+            self.make_input(
+                op.join(p_case, 'input_nest{0}.swn'.format(c)), case_id,
+                mesh_nested,
+                waves_ss,
+                is_nested=True, boundn_file='bounds_nest{0}.dat'.format(c),
+            )
 
     def outmat2xr(self, p_mat):
 
@@ -243,25 +299,6 @@ class SwanIO_STAT(SwanIO):
                 'TPsmoo': (('X','Y',), dmat['TPsmoo'].T, {'units':'s'}),
             }
         )
-
-        return xds_out
-
-    def output_case(self, p_case, mesh):
-        'read .mat output file from stationary and returns xarray.Dataset'
-
-        # extract output from selected mesh
-        p_mat = op.join(p_case, mesh.output_fn)
-        xds_out = self.outmat2xr(p_mat)
-
-        # set X and Y values
-        X, Y = mesh.get_XY()
-        xds_out = xds_out.assign_coords(X=X)
-        xds_out = xds_out.assign_coords(Y=Y)
-
-        # rename to longitude latitude in spherical coords cases
-        coords_spherical = self.proj.params['coords_spherical']
-        if coords_spherical != None:
-            xds_out = xds_out.rename({'X':'lon', 'Y':'lat'})
 
         return xds_out
 
@@ -307,7 +344,7 @@ class SwanIO_NONSTAT(SwanIO):
         for i in bnd:
             su.copyfile(save, op.join(p_case, 'series_waves_{0}.dat'.format(i)))
 
-    def make_wind_files(self, p_case, waves_event):
+    def make_wind_files(self, p_case, waves_event, mesh, name_mesh):
         '''
         Generate event wind mesh files (swan compatible)
 
@@ -318,12 +355,10 @@ class SwanIO_NONSTAT(SwanIO):
         u10 = waves_event.U10.values[:]
         v10 = waves_event.V10.values[:]
 
-        # main mesh
-        mm = self.proj.mesh_main
-
         # each time needs 2D (mesh) wind files (U,V) 
-        mxc = mm.cg['mxc']  # number mesh x
-        myc = mm.cg['myc']  # number mesh y
+        mxc = mesh.cg['mxc']  # number mesh x
+        myc = mesh.cg['myc']  # number mesh y
+        code = 'wind_{0}'.format(name_mesh)
 
         txt = ''
         for c, (u, v) in enumerate(zip(u10,v10)):
@@ -337,28 +372,31 @@ class SwanIO_NONSTAT(SwanIO):
             u_2d = aux * u
             v_2d = aux * v
             u_v_stack = np.vstack((u_2d, v_2d))
-            save = op.join(p_case, 'wind_{0:06}.dat'.format(c))
+            save = op.join(p_case, '{0}_{1:06}.dat'.format(code, c))
             np.savetxt(save, u_v_stack, fmt='%.2f')
 
             # wind list file
-            txt += 'wind_{0:06}.dat\n'.format(c)
+            txt += '{0}_{1:06}.dat\n'.format(code, c)
 
         # winds file path
-        save = op.join(p_case, 'series_wind.dat')
+        save = op.join(p_case, 'series_{0}.dat'.format(code))
         with open(save, 'w') as f:
             f.write(txt)
 
-    def make_vortex_files(self, p_case, case_id, storm_track,
-                          sm_nested=None, code='wind_main'):
+    def make_vortex_files(self, p_case, case_id, mesh,
+                          storm_track, name_mesh):
         '''
         Generate event wind mesh files (swan compatible)
 
         uses wave_event storm path data over SWAN computational grid
         needs SPHERICAL COORDINATES
 
-        sm_nested - nested mesh (SwanMesh) to use, default (None) for main mesh
+        mesh      - mesh (main or nested)
         code      - nested mesh identificator for swan vortex files
         '''
+
+        # TODO: extenso, llevarlo a hywaves/swan/storms 
+        code = 'wind_{0}'.format(name_mesh)
 
         # parameters
         RE = 6378.135 * 1000            # Earth radius [m]
@@ -382,11 +420,7 @@ class SwanIO_NONSTAT(SwanIO):
         storm_lat_orig = storm_lat
 
         # select main mesh or nested mesh
-        if sm_nested == None:
-            mm = self.proj.mesh_main  # main mesh
-
-        else:
-            mm = mesh  # nested mesh
+        mm = mesh
 
         # comp. grid for generating vortex wind files
         mxc = mm.cg['mxc']  # number mesh x
@@ -535,10 +569,10 @@ class SwanIO_NONSTAT(SwanIO):
         )
         xds_vortex.attrs['xlabel'] = 'Longitude (º)'
         xds_vortex.attrs['ylabel'] = 'Latitude (º)'
+
         xds_vortex.to_netcdf(p_vortex)
 
-
-    def make_level_files(self, p_case, wave_event):
+    def make_level_files(self, p_case, wave_event, mesh, name_mesh):
         'Generate event level mesh files (swan compatible)'
 
         # parse pandas time index to swan iso format
@@ -549,12 +583,10 @@ class SwanIO_NONSTAT(SwanIO):
         zeta = wave_event.level.values[:]
         tide = wave_event.tide.values[:]
 
-        # main mesh
-        mm = self.proj.mesh_main
-
         # each time needs 2D (mesh) level 
-        mxc = mm.cg['mxc']  # number mesh x
-        myc = mm.cg['myc']  # number mesh y
+        mxc = mesh.cg['mxc']  # number mesh x
+        myc = mesh.cg['myc']  # number mesh y
+        code = 'level_{0}'.format(name_mesh)
 
         txt = ''
         for c, (z, t) in enumerate(zip(zeta, tide)):
@@ -565,128 +597,115 @@ class SwanIO_NONSTAT(SwanIO):
             # csv file 
             l = z + t  # total level
             l_2d = aux * l
-            save = op.join(p_case, 'level_{0:06}.dat'.format(c))
+            save = op.join(p_case, '{0}_{1:06}.dat'.format(code, c))
             np.savetxt(save, l_2d, fmt='%.2f')
 
             # level list file
-            txt += 'level_{0:06}.dat\n'.format(c)
+            txt += '{0}_{1:06}.dat\n'.format(code, c)
 
         # waves file path
-        save = op.join(p_case, 'series_level.dat')
+        save = op.join(p_case, 'series_{0}.dat'.format(code))
         with open(save, 'w') as f:
             f.write(txt)
 
-    def make_input(self, p_file, id_run, time, make_waves=True,
-                   make_winds=True, wvs_bnd=['N', 'E', 'W', 'S']):
+    def make_input(self, p_file, id_run,
+                   mesh, name_mesh,
+                   time, ttl_run='',
+                   make_waves=True, make_winds=True, make_levels=True,
+                   waves_bnd=['N', 'E', 'W', 'S'],
+                   is_nested=False, boundn_file=None):
         '''
         Writes input.swn file from waves event for non-stationary execution
 
         p_file     - input.swn file path
         time       - event time at swan iso format
 
+        ttl_run    - execution title that will appear in the output
+
         make_waves - activates waves input files generation (at waves_bnd)
         make_winds - activates wind input files generation
+        make_levels - activates level input files generation
 
         more info: http://swanmodel.sourceforge.net/online_doc/swanuse/node23.html
         '''
 
-        # event time (swan iso format)
-        t0_iso = time[0]
-        t1_iso = time[-1]
+        # -- PROJECT --
+        t = "PROJ '{0}' '{1}' '{2}'\n$\n".format(self.proj.name, id_run, ttl_run)
 
-        # TODO: delta time computacion
-        dt_comp = 5
-
-        # TODO: preparar/move delta times: dt_winds, dt_level, dt_output
-
-        # .swn file parameters
-        sea_level = self.proj.params['sea_level']
-        jonswap_gamma = self.proj.params['jonswap_gamma']
-        cdcap = self.proj.params['cdcap']
-        maxerr = self.proj.params['maxerr']
-        coords_spherical = self.proj.params['coords_spherical']
-        waves_period = self.proj.params['waves_period']
-
-        # main mesh
-        mm = self.proj.mesh_main
-
-        # output points
-        x_out = self.proj.x_out
-        y_out = self.proj.y_out
-
-        # .swn text file
-        t = "PROJ '{0}' '{1}' 'GENERAL'\n$\n".format(self.proj.name, id_run)
+        # -- MODE NONSTATIONARY --
         t += 'MODE NONSTAT\n'
 
-        # spherical coordinates (mercator) swich
-        if coords_spherical:
-            t += 'COORDINATES SPHER {0}\n'.format(coords_spherical)
+        # -- COORDINATES --
+        t += swn_coordinates(self.proj)
 
-        # cdcap
-        cdcap_str = ''
-        if cdcap: cdcap_str = 'cdcap={0}'.format(cdcap)
+        # -- SET -- 
+        t += swn_set(self.proj)
 
-        # max error (caution)
-        maxerr_str = ''
-        if maxerr: maxerr_str = 'maxerr={0}'.format(maxerr)
+        # -- COMPUTATIONAL GRID --
+        t += swn_computational(self.proj, mesh)
 
-        # set level and cdcap (if available)
-        t += 'SET level={0} {1} {2}  NAUTICAL\n$\n'.format(
-            sea_level, cdcap_str, maxerr_str
-        )
+        # -- BATHYMETRY --
+        t += swn_bathymetry(mesh, is_nested)
 
-        # computational grid
-        t += 'CGRID REGULAR {0} {1} {2} {3} {4} {5} {6} CIRCLE 72 0.03 1.00 \n$\n'.format(
-            mm.cg['xpc'], mm.cg['ypc'], mm.cg['alpc'], mm.cg['xlenc'],
-            mm.cg['ylenc'], mm.cg['mxc']-1, mm.cg['myc']-1)
+        # -- SWAN NON STATIONARY -- INPUT GRIDS --
+        t0_iso = time[0]   # initial time (SWAN ISOFORMAT)
+        t1_iso = time[-1]  # end time (SWAN ISOFORMAT)
 
-        # bathymetry
-        t += 'INPGRID BOTTOM REGULAR {0} {1} {2} {3} {4} {5} {6}\n'.format(
-            mm.dg['xpc'], mm.dg['ypc'], mm.dg['alpc'], mm.dg['mxc'],
-            mm.dg['myc'], mm.dg['dxinp'], mm.dg['dyinp'])
+        # level series files
+        if make_levels:
+            level_deltinp = self.proj.params['level_deltinp']
+            level_fn = 'series_level_{0}.dat'.format(name_mesh)
+            level_idla = 3 # TODO: comprobar archivos level se generan acorde
 
-        t += "READINP BOTTOM 1 '{0}' {1} 0 FREE\n$\n".format(
-            mm.depth_fn, mm.dg_idla)
+            t += 'INPGRID  WLEV  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} 1 HR {9}\n'.format(
+                mesh.cg['xpc'], mesh.cg['ypc'], mesh.cg['alpc'],
+                mesh.cg['mxc']-1, mesh.cg['myc']-1, mesh.cg['dxinp'], mesh.cg['dyinp'],
+                t0_iso, level_deltinp, t1_iso)
+            t += "READINP  WLEV 1. SERIES '{0}' {1} 0 FREE\n$\n".format(
+                level_fn, level_idla)
 
-        # level
-        # TODO: gestionar delta_t level
-        t += 'INPGRID  WLEV  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} 1 HR {9}\n'.format(
-            mm.cg['xpc'], mm.cg['ypc'], mm.cg['alpc'], mm.cg['mxc']-1,
-            mm.cg['myc']-1, mm.cg['dxinp'], mm.cg['dyinp'], t0_iso, dt_comp, t1_iso)
-        t += "READINP  WLEV 1. SERIES '{0}' 3 0 FREE\n$\n".format('series_level.dat')
-
-        # wind
-        # TODO: gestionar delta_t winds
+        # wind series files
         if make_winds:
+            wind_deltinp = self.proj.params['wind_deltinp']
+            wind_fn = 'series_wind_{0}.dat'.format(name_mesh)
+            wind_idla = 3 # TODO: comprobar archivos wind se generan acorde
+
             t += 'INPGRID  WIND  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} 1 HR {9}\n'.format(
-                mm.cg['xpc'], mm.cg['ypc'], mm.cg['alpc'], mm.cg['mxc']-1,
-                mm.cg['myc']-1, mm.cg['dxinp'], mm.cg['dyinp'], t0_iso, dt_comp, t1_iso)
-            t += "READINP  WIND 1. SERIES '{0}' 3 0 FREE\n$\n".format('series_wind.dat')
+                mesh.cg['xpc'], mesh.cg['ypc'], mesh.cg['alpc'],
+                mesh.cg['mxc']-1, mesh.cg['myc']-1, mesh.cg['dxinp'], mesh.cg['dyinp'],
+                t0_iso, wind_deltinp, t1_iso)
+            t += "READINP  WIND 1. SERIES '{0}' {1} 0 FREE\n$\n".format(
+                wind_fn, wind_idla)
 
-        # waves boundary conditions
-        if make_waves:
-            t += 'BOUND SHAPespec JONswap {0} {1} DSPR DEGR\n'.format(
-                jonswap_gamma, waves_period)
-            for ic in wvs_bnd:
-                t += "BOUN SIDE {0} CONstant FILE 'series_waves_{0}.dat'\n".format(ic)
+        # -- BOUNDARY WAVES CONDITIONS --
 
-        # numerics & physics
-        t += 'WIND DRAG WU\n'
-        t += 'GEN3 ST6 5.7E-7 8.0E-6 4.0 4.0 UP HWANG VECTAU TRUE10\n'
-        t += 'SSWELL\n'
-        t += 'QUAD iquad=8\n'
-        t += 'WCAP\n'
-        if not coords_spherical:
-            t += 'SETUP\n'  # not compatible with spherical 
-        t += 'BREA\n'
-        t += 'FRICTION JONSWAP\n$\n'
-        t += 'TRIADS\n'
-        t += 'DIFFRAC\n'
+        # MAIN mesh - boundary waves
+        if not is_nested:
 
-        # numerics 
-        t += 'PROP BSBT\n$\n'
+            if make_waves:
+                boundw_jonswap = self.proj.params['boundw_jonswap']
+                boundw_period = self.proj.params['boundw_period']
 
-        # optional nested meshes
+                t += 'BOUND SHAPespec JONswap {0} {1} DSPR DEGR\n'.format(
+                    boundw_jonswap, boundw_period)
+                for ic in waves_bnd:
+                    t += "BOUN SIDE {0} CONstant FILE 'series_waves_{0}.dat'\n".format(ic)
+                t += '$\n'
+
+        # NESTED meshes
+        else:
+            boundn_mode = self.proj.params['boundn_mode']
+            t += "BOUN NEST '{0}' {1}\n".format(boundn_file, boundn_mode)
+            t += '$\n'
+
+        # -- PHYSICS --
+        t += swn_physics(self.proj)
+
+        # -- NUMERICS --
+        t += swn_numerics(self.proj)
+
+        # -- OUTPUT: NESTED MESHES  -- 
+        dt_out = self.proj.params['output_deltt']
         for c, mesh_n in enumerate(self.proj.mesh_nested_list):
             nout_0 = 'nest{0}'.format(c)
             nout_1 = 'bounds_nest{0}.dat'.format(c)
@@ -694,49 +713,40 @@ class SwanIO_NONSTAT(SwanIO):
             t += "NGRID '{0}' {1} {2} {3} {4} {5} {6} {7}\n".format(
                 nout_0, mesh_n.cg['xpc'], mesh_n.cg['ypc'], mesh_n.cg['alpc'],
                 mesh_n.cg['xlenc'], mesh_n.cg['ylenc'],
-                #np.int32(mesh_n.cg['xlenc']/mm.cg['dxinp']),
-                #np.int32(mesh_n.cg['ylenc']/mm.cg['dyinp'])
-                mesh_n.cg['mxc'], mesh_n.cg['myc'],
+                np.int32(mesh_n.cg['xlenc']/mesh.cg['dxinp']),
+                np.int32(mesh_n.cg['ylenc']/mesh.cg['dyinp'])
             )
-            t += "NESTOUT '{0}' '{1}' OUT {2} {3} MIN\n$\n".format(
-                nout_0, nout_1, t0_iso, dt_comp)
+            t += "NESTOUT '{0}' '{1}' OUT {2} {3} \n$\n".format(
+                nout_0, nout_1, t0_iso, dt_out)
 
-        # output
-        # TODO: revisar el delta_time output
-        #t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR OUT {1} {2} MIN\n$\n".format(
-        #    mm.output_fn, t0_iso, dt_comp)
-        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR OUT {1} 1.0 HR\n$\n".format(
-            mm.output_fn, t0_iso)
+        # -- OUTPUT: BLOCK  -- 
+        dt_out = self.proj.params['output_deltt']
+        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR OUT {1} {2}\n$\n".format(
+            mesh.output_fn, t0_iso, dt_out)
 
-        # output points
+        # -- OUTPUT: POINTS  -- 
+        x_out = self.proj.x_out
+        y_out = self.proj.y_out
         if not x_out or not y_out:
             pass
         else:
             t += "POINTS 'outpts' FILE 'points_out.dat'\n"
-            t += "TABLE 'outpts' NOHEAD 'table_outpts.dat' DEP HS HSWELL DIR RTP TM02 DSPR WIND WATLEV  OUT {0} {1} MIN\n$\n".format(t0_iso, dt_comp)
+            t += "TABLE 'outpts' NOHEAD 'table_outpts.dat' DEP HS HSWELL DIR RTP TM02 DSPR WIND WATLEV  OUT {0} {1} MIN\n$\n".format(
+                t0_iso, dt_out)
 
-        # compute
+        # -- COMPUTE --
+        compute_deltc = self.proj.params['compute_deltc']
         t += 'TEST  1,0\n'
-        t += 'COMPUTE NONSTAT {0} {1} MIN {2}\n'.format(t0_iso, dt_comp, t1_iso)
+        t += 'COMPUTE NONSTAT {0} {1} {2}\n'.format(t0_iso, compute_deltc, t1_iso)
         t += 'STOP\n$\n'
 
         # write file:
         with open(p_file, 'w') as f:
             f.write(t)
 
-    def make_input_nested(self, p_file, id_run, time, sm_nested, sm_bound_file):
-        '''
-        Writes input_nested.swn file from waves sea state for non-stationary execution
-
-        p_file  - input_nestedN.swn file path
-        time    - event time at swan iso format
-        sm_nested  - nested SwanMesh object
-        '''
-
-        # TODO: imitar a SwanIO_STAT para generar el input_nestX.swn
-
     def build_case(self, case_id, waves_event, storm_track=None,
-                   make_waves=True, make_winds=True, waves_bnd=['N', 'E', 'W', 'S']):
+                   make_waves=True, make_winds=True, make_levels=True,
+                   waves_bnd=['N', 'E', 'W', 'S']):
         '''
         Build SWAN NONSTAT case input files for given wave dataset
 
@@ -751,66 +761,79 @@ class SwanIO_NONSTAT(SwanIO):
         [n x 6] (move, vf, lon, lat, pn, p0)
         '''
 
+        # TODO: CODE A WIND Y LEVEL FILES MAIN Y MESH
+
         # parse pandas time index to swan iso format
         swan_iso_fmt = '%Y%m%d.%H%M'
         time_swan = pd.to_datetime(waves_event.index).strftime(swan_iso_fmt).values[:]
 
         # SWAN case path
         p_case = op.join(self.proj.p_cases, case_id)
-
-        # make execution dir
         if not op.isdir(p_case): os.makedirs(p_case)
 
-        # make depth file for main mesh
-        self.proj.mesh_main.export_dat(p_case)
+
+        # MAIN mesh
+        self.proj.mesh_main.export_dat(p_case)  # export depth file
 
         # make water level files
-        self.make_level_files(p_case, waves_event)
+        if make_levels:self.make_level_files(p_case, waves_event, self.proj.mesh_main,'main')
 
         # make wave files
-        if make_waves:
-            self.make_wave_files(p_case, waves_event, time_swan, waves_bnd)
+        if make_waves: self.make_wave_files(p_case, waves_event, time_swan, waves_bnd)
 
         # make wind files
         if make_winds:
 
-            # vortex model from storm tracks
+            # vortex model from storm tracks  //  meshgrind wind
             if isinstance(storm_track, pd.DataFrame):
-                self.make_vortex_files(
-                    p_case, case_id, storm_track,
-                )
-
+                self.make_vortex_files(p_case, case_id, self.proj.mesh_main, storm_track, 'main')
             else:
-                # meshgrid wind
-                self.make_wind_files(p_case, waves_event)
+                self.make_wind_files(p_case, waves_event, self.proj.mesh_main, 'main')
 
         # make output points file
         self.make_out_points(op.join(p_case, 'points_out.dat'))
 
         # make input.swn file
         self.make_input(
-            op.join(p_case, 'input.swn'), case_id, time_swan,
-            make_waves = make_waves, make_winds = make_winds,
+            op.join(p_case, 'input.swn'), case_id,
+            self.proj.mesh_main, 'main',
+            time_swan,
+            make_waves = make_waves,
+            make_winds = make_winds,
+            make_levels = make_levels,
+            waves_bnd = waves_bnd
         )
 
-        # optional nested mesh depth and input files
+        # NESTED mesh depth and input (wind, level) files
         for c, mesh_n in enumerate(self.proj.mesh_nested_list):
-            input_nested = 'input_nest{0}.swn'.format(c)
-            bound_file = 'bounds_nest{0}.dat'.format(c)
+            nme = 'nest{0}'.format(c)
 
-            mesh_n.export_dat(p_case)
-            self.make_input_nested(op.join(p_case, input_nested), case_id,
-                                   time_swan, mesh_n, bound_file)
+            mesh_n.export_dat(p_case)  # export nested depth file
 
-            # make nested vortex files
+            if make_levels:
+                self.make_level_files(p_case, waves_event, mesh_n, nme)
 
-            if isinstance(storm_track, pd.DataFrame):
-                self.make_vortex_files(
-                    p_case, case_id, storm_track,
-                    sm_nested = mesh_n, code = 'nest{0}'.format(c),
-                )
+            if make_winds:
 
-            # TODO: es necesario crear wind/level files exclusivas para cada nested mesh?
+                # vortex model from storm tracks  //  meshgrind wind
+                if isinstance(storm_track, pd.DataFrame):
+                    self.make_vortex_files(p_case, case_id, mesh_n, storm_track, nme)
+                else:
+                    self.make_wind_files(p_case, waves_event, mesh_n, nme)
+
+            # make input_nestX.swn file
+            self.make_input(
+                op.join(p_case, 'input_nest{0}.swn'.format(c)), case_id,
+                mesh_n, 'nest{0}'.format(c),
+                time_swan,
+                make_waves = make_waves,
+                make_winds = make_winds,
+                make_levels = make_levels,
+                is_nested=True, boundn_file='bounds_nest{0}.dat'.format(c),
+            )
+
+
+
 
     def outmat2xr(self, p_mat):
 
@@ -839,25 +862,6 @@ class SwanIO_NONSTAT(SwanIO):
         # join at times dim
         xds_out = xr.concat(l_times, dim='time')
         xds_out = xds_out.assign_coords(time=dates)
-
-        return xds_out
-
-    def output_case(self, p_case, mesh):
-        'read .mat output file from non-stationary and returns xarray.Dataset'
-
-        # extract output from selected mesh
-        p_mat = op.join(p_case, mesh.output_fn)
-        xds_out = self.outmat2xr(p_mat)
-
-        # set X and Y values
-        X, Y = mesh.get_XY()
-        xds_out = xds_out.assign_coords(X=X)
-        xds_out = xds_out.assign_coords(Y=Y)
-
-        # rename to longitude latitude in spherical coords cases
-        coords_spherical = self.proj.params['coords_spherical']
-        if coords_spherical != None:
-            xds_out = xds_out.rename({'X':'lon', 'Y':'lat'})
 
         return xds_out
 
