@@ -150,6 +150,8 @@ input_params = {
     'boundw_jonswap': 3.3,
     'boundw_period': 'MEAN',
 
+    'boundn_mode': 'CLOSED',
+
     'wind_deltinp': '30 MIN',
     'level_deltinp': '1 HR',
 
