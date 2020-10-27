@@ -23,6 +23,8 @@ from hywaves.swan.storms import track_from_parameters
 from hywaves.swan.wrap import SwanProject, SwanMesh, SwanWrap_NONSTAT
 
 
+# TODO: actualizar a track_site_parameters
+
 # --------------------------------------
 # data
 p_data = op.abspath(op.join(op.dirname(__file__), '..', '..', 'data'))
@@ -66,6 +68,8 @@ st = track_from_parameters(
     pmin, vmean, delta, gamma, x0, y0, x1, R, date_ini, hours,
     great_circle=True
 )
+
+# TODO vf a vfx, vfy
 
 print('\ninput storm track')
 print(st)
@@ -117,14 +121,32 @@ sp.set_main_mesh(main_mesh)
 
 
 # SWAN parameters (sea level, jonswap gamma)
-sp.params = {
-    'sea_level': 0,
-    'jonswap_gamma': 3.3,
-    'cdcap': 2.5*10**-3,
-    'coords_spherical': 'GCM',
-    'waves_period': 'MEAN',
-    'maxerr': None,
+input_params = {
+    'set_level': 0,
+    'set_convention': 'NAUTICAL',
+    'set_cdcap': 2.5*10**-3,
+
+    'coords_mode': 'SPHERICAL',
+    'coords_projection': 'GCM',
+
+    'boundw_jonswap': 3.3,
+    'boundw_period': 'MEAN',
+
+    'physics':[
+        'WIND DRAG WU',
+        'GEN3 ST6 5.7E-7 8.0E-6 4.0 4.0 UP HWANG VECTAU TRUE10',
+        'QUAD iquad=8',
+        'WCAP',
+        #'SETUP',  # not compatible with spherical coords
+        'TRIADS',
+        'DIFFRAC',
+    ],
+
+    'numerics':[
+        'PROP BSBT',
+    ]
 }
+sp.set_params(input_params)
 
 
 # SWAN output points

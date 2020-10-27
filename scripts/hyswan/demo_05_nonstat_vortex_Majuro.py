@@ -36,7 +36,7 @@ xds_bathy = xr.open_dataset(p_bathy)
 # sign convention [0º,360º]
 xds_lon = xds_bathy.lon.values
 xds_lon[xds_lon<0] = xds_lon[xds_lon<0] + 360
-xds_bathy.lon.values = xds_lon
+xds_bathy.lon.values[:] = xds_lon
 
 lon = xds_bathy.lon.values[:]
 lat = xds_bathy.lat.values[:]
@@ -99,7 +99,7 @@ print(st)
 # SWAN project (config bathymetry, parameters, computational grid)
 
 p_proj = op.join(p_data, 'projects')  # swan projects main directory
-n_proj = '05_vortex'                  # project name
+n_proj = '05_vortex_majuro'           # project name
 
 sp = SwanProject(p_proj, n_proj)
 sp.storm = 'name'
@@ -200,15 +200,35 @@ sp.set_nested_mesh_list([mesh_nest1, mesh_nest2])
 
 # --------------------------------------
 # SWAN parameters (sea level, jonswap gamma)
-sp.params = {
-    'sea_level': 0,
-    'jonswap_gamma': 3.3,
-    'cdcap': 2.5*10**-3,
-    'coords_spherical': 'GCM',
-    'waves_period': 'MEAN',
-    'maxerr': None,
-}
+input_params = {
+    'set_level': 0,
+    'set_convention': 'NAUTICAL',
+    'set_cdcap': 2.5*10**-3,
 
+    'boundw_jonswap': 3.3,
+    'boundw_period': 'MEAN',
+
+    'wind_deltinp': '30 MIN',
+    'level_deltinp': '1 HR',
+
+    'compute_deltc': '30 MIN',
+    'output_deltt': '30 MIN',
+
+    'physics':[
+        'WIND DRAG WU',
+        'GEN3 ST6 5.7E-7 8.0E-6 4.0 4.0 UP HWANG VECTAU TRUE10',
+        'QUAD iquad=8',
+        'WCAP',
+        #'SETUP',  # not compatible with spherical coords
+        'TRIADS',
+        'DIFFRAC',
+    ],
+
+    'numerics':[
+        'PROP BSBT',
+    ]
+}
+sp.set_params(input_params)
 
 # SWAN output points
 sp.x_out = [172.5, 172.5, 171]
