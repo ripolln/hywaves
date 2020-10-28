@@ -138,8 +138,6 @@ input_params = {
 
     'boundn_mode': 'CLOSED',
 
-    'compute_deltc': '5 MIN',
-
     'physics':[
         'FRICTION JONSWAP',
         'BREAKING',
