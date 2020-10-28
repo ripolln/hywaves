@@ -148,8 +148,8 @@ input_params = {
     'wind_deltinp': '1 HR',
     'level_deltinp': '1 HR',
 
-    'compute_deltc': '5 MIN',
-    'output_deltt': '10 MIN',
+    'compute_deltc': '10 MIN',
+    'output_deltt': '30 MIN',
 
     'physics':[
         'WIND DRAG WU',
