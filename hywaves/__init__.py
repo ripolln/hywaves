@@ -11,5 +11,8 @@ __keywords__    = 'SWAN SWASH metamodel rbf mda waves numerical wrapper'
 
 from . import swan
 from . import swash
+from . import mda
+from . import rbf
+from . import plotting
 
 

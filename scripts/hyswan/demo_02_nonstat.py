@@ -135,7 +135,7 @@ sp.set_nested_mesh_list([mesh_nest1])
 
 
 # --------------------------------------
-# SWAN parameters (sea level, jonswap gamma)
+# SWAN parameters (sea level, jonswap gamma, ...)
 input_params = {
     'set_level': 4,
     'set_convention': 'NAUTICAL',

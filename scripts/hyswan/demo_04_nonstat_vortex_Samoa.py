@@ -36,7 +36,7 @@ xds_bathy = xr.open_dataset(p_bathy)
 # sign convention [0º,360º]
 xds_lon = xds_bathy.lon.values
 xds_lon[xds_lon<0] = xds_lon[xds_lon<0] + 360
-xds_bathy.lon.values = xds_lon
+xds_bathy.lon.values[:] = xds_lon
 xds_bathy = xds_bathy.sel(lon=slice(182,194), lat=slice(-20,-7.5))
 
 lon = xds_bathy.lon.values[:]
@@ -87,8 +87,9 @@ R = 4                # smaller radius in degrees
 
 tstep = 30           # computational time step (minutes) for track interpolation
 
+# TODO: genera storm track de un unico instante de tiempo
 st = track_site_parameters(
-    tstep, pmin, vmean, delta, gamma, x0, y0, lon[0], lon[-1], lat[0], lat[-1], 
+    tstep, pmin, vmean, delta, gamma, x0, y0, lon[0], lon[-1], lat[0], lat[-1],
     R, date_ini
 )
 
@@ -100,7 +101,7 @@ print(st)
 # SWAN project (config bathymetry, parameters, computational grid)
 
 p_proj = op.join(p_data, 'projects')  # swan projects main directory
-n_proj = '04_vortex'                  # project name
+n_proj = '04_vortex_samoa'            # project name
 
 sp = SwanProject(p_proj, n_proj)
 
@@ -140,15 +141,38 @@ main_mesh.cg = {
 
 sp.set_main_mesh(main_mesh)
 
-# SWAN parameters (sea level, jonswap gamma)
-sp.params = {
-    'sea_level': 0,
-    'jonswap_gamma': 3.3,
-    'cdcap': 2.5*10**-3,
-    'coords_spherical': 'GCM',
-    'waves_period': 'MEAN',
-    'maxerr': None,
+# SWAN parameters (sea level, jonswap gamma, ...)
+input_params = {
+    'set_level': 0,
+    'set_convention': 'NAUTICAL',
+    'set_cdcap': 2.5*10**-3,
+
+    'boundw_jonswap': 3.3,
+    'boundw_period': 'MEAN',
+
+    'boundn_mode': 'CLOSED',
+
+    'wind_deltinp': '30 MIN',
+    'level_deltinp': '1 HR',
+
+    'compute_deltc': '5 MIN',
+    'output_deltt': '30 MIN',
+
+    'physics':[
+        'WIND DRAG WU',
+        'GEN3 ST6 5.7E-7 8.0E-6 4.0 4.0 UP HWANG VECTAU TRUE10',
+        'QUAD iquad=8',
+        'WCAP',
+        #'SETUP',  # not compatible with spherical coords
+        'TRIADS',
+        'DIFFRAC',
+    ],
+
+    'numerics':[
+        'PROP BSBT',
+    ]
 }
+sp.set_params(input_params)
 
 
 # SWAN output points

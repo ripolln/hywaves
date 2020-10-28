@@ -8,6 +8,9 @@ from datetime import timedelta
 from .geo import shoot, gc_distance
 
 
+# STORM TRACK LIBRARY
+
+# TODO CAMBIAR POR historic_track_parameters
 def track_from_parameters(
     pmin, vmean, delta, gamma,
     x0, y0, x1, R,
@@ -140,7 +143,6 @@ def historic_track_preprocessing(xds, d_vns):
 
     return st_time, ylat_tc, ylon_tc, ycpres, ywind, ts, categ
 
-
 def ibtrac_basin_fitting(x0, y0):
     '''
     Assigns cubic polynomial fitting curve coefficient for each basin of
@@ -168,7 +170,6 @@ def ibtrac_basin_fitting(x0, y0):
         p4 = 38509.7575283218
 
     return p1, p2, p3, p4
-
 
 def historic_track_interpolation(st_time, ylon_tc, ylat_tc, ycpres, ywind, y0, x0,
                                  lat00, lon00, lat01, lon01, ts, dt_comp,
@@ -400,4 +401,8 @@ def track_site_parameters(step, pmin, vmean, delta, gamma,
     st.R = R
 
     return st
+
+
+# VORTEX LIBRARY
+# TODO 
 

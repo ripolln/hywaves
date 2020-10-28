@@ -42,7 +42,7 @@ d_params_template = {
     # COMPUTATIONAL GRID
     'cgrid_mdc': 72,           # spectral circle subdivisions
     'cgrid_flow': 0.03,        # lowest discrete frequency used in the calculation (Hz) (0.03) 
-    'cgrid_fhigh': 1.00,          # highest discrete frequency used in the calculation (Hz) (1.00) 
+    'cgrid_fhigh': 1.00,       # highest discrete frequency used in the calculation (Hz) (1.00) 
 
     # BOUNDARY WAVES
     'boundw_jonswap': None,    # jonswap gamma: 3.3 (default)
@@ -77,20 +77,40 @@ class SwanMesh(object):
     def __init__(self):
 
         self.depth = None   # bathymetry depth value (2D numpy.array)
-        self.depth_fn = ''  # filename used in SWAN execution
-        self.output_fn = ''  # output .mat file for mesh comp. grid
+
+        self.ID = ''        # mesh ID ("main", "nest1", ...)
+
+        # mesh related filenames
+        self.fn_depth = 'depth_{0}.dat'    # filename used in SWAN execution
+        self.fn_output = 'output_{0}.mat'  # output .mat file for mesh comp. grid
+        self.fn_input = 'input_{0}.swn'    # input .swn file
+
+        # for nested mesh
+        self.is_nested = False
+        self.fn_boundn = 'bounds_{0}.dat'  # input bounds file
 
         # grid parameters
         self.cg = d_grid_template.copy()  # computational grid
         self.dg = d_grid_template.copy()  # depth grid
         self.dg_idla = 1  # http://swanmodel.sourceforge.net/online_doc/swanuse/node26.html
 
-    def export_dat(self, p_case):
+    def set_ID(self, ID):
+        'set mesh ID and related files names'
+
+        self.ID = ID
+
+        self.fn_depth = 'depth_{0}.dat'.format(ID)
+        self.fn_output = 'output_{0}.mat'.format(ID)
+        self.fn_input = 'input_{0}.swn'.format(ID)
+
+        self.fn_boundn = 'bounds_{0}.dat'.format(ID)
+
+    def export_depth(self, p_case):
         'exports depth values to .dat file'
 
         # TODO: only compatible with dg_idla = 1 ?
 
-        p_export = op.join(p_case, self.depth_fn)
+        p_export = op.join(p_case, self.fn_depth)
         np.savetxt(p_export, self.depth, fmt='%.2f')
 
     def get_XY(self):
@@ -142,10 +162,8 @@ class SwanProject(object):
     def set_main_mesh(self, sm):
         'Set main mesh, sm - SwanMesh object'
 
-        # default file ids
-        sm.depth_fn = 'depth_main.dat'
-        sm.output_fn = 'output_main.mat'
-
+        # main mesh ID 
+        sm.set_ID('main')
         self.mesh_main = sm
 
     def set_nested_mesh_list(self, sm_list):
@@ -154,18 +172,15 @@ class SwanProject(object):
         l_nested  = []
         for c, sm_n in enumerate(sm_list):
 
-            # default file ids
-            sm_n.depth_fn = 'depth_nest{0}.dat'.format(c)
-            sm_n.output_fn = 'output_nest{0}.mat'.format(c)
-
+            # nest mesh ID
+            sm_n.set_ID('nest{0}'.format(c))
+            sm_n.is_nested = True
             l_nested.append(sm_n)
-
         self.mesh_nested_list = l_nested
 
     def set_params(self, input_params):
         'Set project parameters from input dictionary'
 
-        # TODO: test 
         # update template parameters 
         self.params = {**self.params, **input_params}
 
@@ -208,18 +223,17 @@ class SwanWrap(object):
         for p_run in run_dirs:
 
             # run case main mesh
-            self.run(p_run)
+            self.run(p_run, input_file = self.proj.mesh_main.fn_input)
 
             # run nested meshes
-            for c, mesh_n in enumerate(self.proj.mesh_nested_list):
-                input_nested = 'input_nest{0}.swn'.format(c)
-                self.run(p_run, input_file=input_nested)
+            for mesh_n in self.proj.mesh_nested_list:
+                self.run(p_run, input_file = mesh_n.fn_input)
 
             # log
             p = op.basename(p_run)
             print('SWAN CASE: {0} SOLVED'.format(p))
 
-    def run(self, p_run, input_file='input.swn'):
+    def run(self, p_run, input_file='input_main.swn'):
         'Bash execution commands for launching SWAN'
 
         # aux. func. for launching bash command
@@ -249,8 +263,8 @@ class SwanWrap(object):
 
         if is_win:
             # WINDOWS - use swashrun command
-            cmd = 'cd {0} && swashrun input && {1} input'.format(
-                p_run, self.bin)
+            cmd = 'cd {0} && copy {1} INPUT && {2} INPUT'.format(
+                p_run, input_file, self.bin)
 
         else:
             # LINUX/MAC - ln input file and run swan case
@@ -430,7 +444,7 @@ class SwanWrap_NONSTAT(SwanWrap):
 
         # concatenate xarray datasets (new dim: case)
         xds_out = xr.concat(l_out, dim='case')
-        if (case_ini != None) & (case_end != None):   
+        if (case_ini != None) & (case_end != None):
             xds_out = xds_out.assign(case=np.arange(case_ini, case_end))
 
         return(xds_out)

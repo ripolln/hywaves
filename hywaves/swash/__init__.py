@@ -13,9 +13,8 @@ import os.path as op
 import shutil
 
 from . import io
-from . import plots
 from . import wrap
-
+from . import plots
 
 
 def set_swash_binary_file(bin_file):
