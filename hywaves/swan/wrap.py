@@ -37,7 +37,7 @@ d_params_template = {
 
     # COORDINATES
     'coords_mode': None,       # 'CARTESIAN' (default), 'SPHERICAL' 
-    'coords_projection': None, # projection method: 'GCM' (default), 'QC'
+    'coords_projection': None, # projection method: 'CCM' (default), 'QC'
 
     # COMPUTATIONAL GRID
     'cgrid_mdc': 72,           # spectral circle subdivisions
