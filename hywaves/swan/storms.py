@@ -373,14 +373,12 @@ def track_site_parameters(step, pmin, vmean, delta, gamma,
     i = 1
     glon, glat, baz = shoot(x1, y1, gamma+180, vmean*1.872 * i*step/60)  # velocity in [km/h]
     if glon < 0: glon += 360
-
     while (glon < lon1) & (glon > lon0) & (glat < lat1) & (glat > lat0):
         xt.append(glon)
         yt.append(glat)
         i += 1
         glon, glat, baz = shoot(x1, y1, gamma+180, vmean*1.872 * i*step/60)  # velocity in [km/h]
         if glon < 0: glon += 360
-
     frec = len(xt)
 
     # time array for SWAN input
