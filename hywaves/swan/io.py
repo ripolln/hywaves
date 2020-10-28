@@ -40,8 +40,7 @@ def swn_set(proj):
     set_cdcap = proj.params['set_cdcap']
     set_convention = proj.params['set_convention']
 
-    level_str = ''
-    if set_level: level_str = 'level={0}'.format(set_level)
+    level_str = 'level={0}'.format(set_level)
     cdcap_str = ''
     if set_cdcap: cdcap_str = 'cdcap={0}'.format(set_cdcap)
     maxerr_str = ''
