@@ -19,11 +19,10 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, op.join(op.dirname(__file__), '..', '..'))
 
 # swan wrap module 
-from hywaves.swan.storms import track_from_parameters
+from hywaves.swan.storms import track_site_parameters
 from hywaves.swan.wrap import SwanProject, SwanMesh, SwanWrap_NONSTAT
 
 
-# TODO: actualizar a track_site_parameters
 
 # --------------------------------------
 # data
@@ -61,15 +60,16 @@ vmean = 69.0352      # translation velocity (km/h)
 delta = 87.8432      # azimut
 gamma = 92.7126      # translation angle (nautical convention)
 x0, y0 = 167.5, 9.5  # Roi-Namur coordinates
-x1 = 175             # enter point in the computational grid
+#x1 = 175            # enter point in the computational grid
 R = 4                # smaller radius in degrees
 
-st = track_from_parameters(
-    pmin, vmean, delta, gamma, x0, y0, x1, R, date_ini, hours,
-    great_circle=True
-)
+tstep = 30           # computational time step (minutes) for track interpolation
 
-# TODO vf a vfx, vfy
+st = track_site_parameters(
+    tstep, pmin, vmean, delta, gamma,
+    x0, y0, lon[0], lon[-1], lat[0], lat[-1],
+    R, date_ini
+)
 
 print('\ninput storm track')
 print(st)
@@ -127,10 +127,16 @@ input_params = {
     'set_cdcap': 2.5*10**-3,
 
     'coords_mode': 'SPHERICAL',
-    'coords_projection': 'GCM',
+    'coords_projection': 'CCM',
 
     'boundw_jonswap': 3.3,
     'boundw_period': 'MEAN',
+
+    'wind_deltinp': '30 MIN',
+    'level_deltinp': '1 HR',
+
+    'compute_deltc': '30 MIN',
+    'output_deltt': '30 MIN',
 
     'physics':[
         'WIND DRAG WU',
