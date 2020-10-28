@@ -15,7 +15,6 @@ import shutil
 from . import geo
 from . import io
 from . import storms
-from . import plots
 from . import wrap
 
 
