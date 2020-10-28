@@ -10,7 +10,7 @@ from .geo import shoot, gc_distance
 
 # STORM TRACK LIBRARY
 
-# TODO CAMBIAR POR historic_track_parameters
+# TODO CAMBIAR POR historic_track_parameters
 def track_from_parameters(
     pmin, vmean, delta, gamma,
     x0, y0, x1, R,
@@ -372,11 +372,16 @@ def track_site_parameters(step, pmin, vmean, delta, gamma,
     xt, yt = [x1], [y1]
     i = 1
     glon, glat, baz = shoot(x1, y1, gamma+180, vmean*1.872 * i*step/60)  # velocity in [km/h]
+    
+    # sign convention [0º,360º]
+    if glon < 0:    glon += 360
+
     while (glon < lon1) & (glon > lon0) & (glat < lat1) & (glat > lat0):
         xt.append(glon)
         yt.append(glat)
         i += 1
         glon, glat, baz = shoot(x1, y1, gamma+180, vmean*1.872 * i*step/60)  # velocity in [km/h]
+        if glon < 0:    glon += 360
     frec = len(xt)
 
     # time array for SWAN input

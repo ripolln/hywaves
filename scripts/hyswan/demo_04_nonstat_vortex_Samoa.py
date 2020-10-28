@@ -87,7 +87,7 @@ R = 4                # smaller radius in degrees
 
 tstep = 30           # computational time step (minutes) for track interpolation
 
-# TODO: genera storm track de un unico instante de tiempo
+# TODO: genera storm track de un unico instante de tiempo
 st = track_site_parameters(
     tstep, pmin, vmean, delta, gamma, x0, y0, lon[0], lon[-1], lat[0], lat[-1],
     R, date_ini
