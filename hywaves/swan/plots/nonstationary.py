@@ -15,7 +15,9 @@ import matplotlib.colors as colors
 from matplotlib.colors import ListedColormap
 from matplotlib import cm
 
-#from .storms import get_category
+
+# TODO: rethink library
+
 
 def get_storm_color(categ):
 
@@ -327,7 +329,7 @@ def plot_output_nonstat(name, xds_out, var_name, p_export, num_nests,
     '''
 
     # make export dir
-    if not op.isdir(p_export): os.makedirs(p_export)
+    #if not op.isdir(p_export): os.makedirs(p_export)
 
     for case_ix in xds_out.case.values[:]:
 
@@ -361,15 +363,15 @@ def plot_var_times(name, xds_out_case, var_name, p_export_case, num_nests, lon, 
     cmap       - matplotlib colormap
     '''
 
-    if not op.isdir(p_export_case): os.makedirs(p_export_case)
+    #if not op.isdir(p_export_case): os.makedirs(p_export_case)
 
     # maximum value of output variable over time (GENERAL MESH) --->  axis = (case, time, Y, X)
     var_max = float(xds_out_case[var_name].max(axis=0).max())
     var_min = float(xds_out_case[var_name].min(axis=0).min())
 
     # iterate case output over time
-    for t in xds_out_case.time.values[:]:
-        xds_oct = xds_out_case.sel(time=t)
+    for c, t in enumerate(xds_out_case.time.values[:]):
+        xds_oct = xds_out_case.isel(time=c)
 
         # time string
         t_str = pd.to_datetime(str(t)).strftime('%d-%b-%Y %H:%M%p') 
@@ -432,12 +434,13 @@ def plot_var_times(name, xds_out_case, var_name, p_export_case, num_nests, lon, 
         plt.ylabel('{0} ({1})'.format(var_name, var_units), fontsize = 12)
 
         # export fig
-        p_ex = op.join(p_export_case, 'outmap_{0}_{1}.png'.format(var_name, t_str))
-        fig.savefig(p_ex)
+        #p_ex = op.join(p_export_case, 'outmap_{0}_{1}.png'.format(var_name, t_str))
+        #fig.savefig(p_ex)
 
         # close fig 
-        plt.close()
-        
+        #plt.close()
+        plt.show()
+
 def aux_quiver(X, Y, var, vdir, scale_quiver, step, ax=None):
     '''
     interpolates var and plots quiver with var_dir. Requires open figure
@@ -919,7 +922,7 @@ def plot_storm_track(name, pd_storm, case_id, lon0, lon1, lat0, lat1, num_nests,
     '''
 
     # make export dir
-    if not op.isdir(p_export): os.makedirs(p_export)
+    #if not op.isdir(p_export): os.makedirs(p_export)
 
     # get storm track data
     xt = pd_storm.lon
@@ -966,11 +969,12 @@ def plot_storm_track(name, pd_storm, case_id, lon0, lon1, lat0, lat1, num_nests,
     plt.legend()
 
     # export fig
-    p_save = op.join(p_export, 'track_coords_{0}.png'.format(case_id))
-    fig.savefig(p_save)
+    #p_save = op.join(p_export, 'track_coords_{0}.png'.format(case_id))
+    #fig.savefig(p_save)
 
     # close fig
-    plt.close()
+    plt.show()
+    #plt.close()
     
 def plot_points_loc(p_export, xds_depth, np_shore, x_out, y_out, 
                     lon0, lon1, lat0, lat1, show=False):
