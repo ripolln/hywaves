@@ -18,7 +18,7 @@ import xarray as xr
 sys.path.insert(0, op.join(op.dirname(__file__), '..', '..'))
 
 # swan wrap module
-from hywaves.swan.wrap import SwanProject, SwanWrap_NONSTAT
+from hywaves.swan.wrap import SwanProject, SwanMesh, SwanWrap_NONSTAT
 
 
 # --------------------------------------
@@ -45,7 +45,7 @@ waves = xds_waves.to_dataframe()  # xarray --> pandas
 
 # now we generate the wave event 
 vs = ['hs', 't02', 'dir', 'spr', 'U10', 'V10']
-we = waves['2000-01-02 00:00':'2000-01-02 02:00'][vs]
+we = waves['2000-01-02 00:00':'2000-01-02 03:00'][vs]
 we['level'] = 0 # no water level data 
 we['tide'] = 0 # no tide data 
 we.rename(columns={'t02': 'per'}, inplace=True)  # rename for swan
@@ -65,46 +65,107 @@ sp = SwanProject(p_proj, n_proj)
 
 # --------------------------------------
 # SWAN main mesh
+main_mesh = SwanMesh()
 
 # depth grid description (input bathymetry grid)
-sp.mesh_main.dg = {
+main_mesh.dg = {
     'xpc': 0,       # x origin
     'ypc': 0,       # y origin
     'alpc': 0,      # x-axis direction 
-    'xlenc': 700,   # grid length in x
-    'ylenc': 1000,  # grid length in y
+    'xlenc': 400,   # grid length in x
+    'ylenc': 400,  # grid length in y
     'mxc': 1,       # number mesh x
     'myc': 1,       # number mesh y
-    'dxinp': 700,   # size mesh x
-    'dyinp': 1000,  # size mesh y
+    'dxinp': 400,   # size mesh x
+    'dyinp': 400,  # size mesh y
 }
 
 # depth value
-sp.mesh_main.depth = np.ones((2,2)) * 155
+main_mesh.depth = np.ones((2,2)) * 155
 
 # computational grid description
-sp.mesh_main.cg = {
+main_mesh.cg = {
     'xpc': 0,
     'ypc': 0,
     'alpc': 0,
-    'xlenc': 700,
-    'ylenc': 1000,
-    'mxc': 100,
-    'myc': 50,
-    'dxinp': 7,
+    'xlenc': 400,
+    'ylenc': 400,
+    'mxc': 40,
+    'myc': 20,
+    'dxinp': 10,
     'dyinp': 20,
 }
 
+sp.set_main_mesh(main_mesh)
 
-# SWAN parameters (sea level, jonswap gamma)
-sp.params = {
-    'sea_level': 4,
-    'jonswap_gamma': 1.9,
-    'cdcap': None,
-    'coords_spherical': None,
-    'waves_period': 'MEAN',
-    'maxerr': None,
+# --------------------------------------
+# SWAN nest1 mesh
+mesh_nest1 = SwanMesh()
+
+# depth grid description
+mesh_nest1.dg = {
+    'xpc': 50,
+    'ypc': 100,
+    'alpc': 0,
+    'xlenc': 80,
+    'ylenc': 100,
+    'mxc': 8,
+    'myc': 10,
+    'dxinp': 10,
+    'dyinp': 10,
 }
+
+# depth value
+mesh_nest1.depth = np.ones((10,8)) * 158
+
+# computational grid description
+mesh_nest1.cg = {
+    'xpc': 50,
+    'ypc': 100,
+    'alpc': 0,
+    'xlenc': 80,
+    'ylenc': 100,
+    'mxc': 8,
+    'myc': 10,
+    'dxinp': 10,
+    'dyinp': 10,
+}
+
+sp.set_nested_mesh_list([mesh_nest1])
+
+
+# --------------------------------------
+# SWAN parameters (sea level, jonswap gamma, ...)
+input_params = {
+    'set_level': 4,
+    'set_convention': 'NAUTICAL',
+
+    'boundw_jonswap': 1.9,
+    'boundw_period': 'MEAN',
+
+    'boundn_mode': 'CLOSED',
+
+    'wind_deltinp': '1 HR',
+    'level_deltinp': '1 HR',
+
+    'compute_deltc': '10 MIN',
+    'output_deltt': '30 MIN',
+
+    'physics':[
+        'WIND DRAG WU',
+        'GEN3 ST6 5.7E-7 8.0E-6 4.0 4.0 UP HWANG VECTAU TRUE10',
+        'QUAD iquad=8',
+        'WCAP',
+        #'SETUP',  # not compatible with spherical coords
+        'TRIADS',
+        'DIFFRAC',
+    ],
+
+    'numerics':[
+        'PROP BSBT',
+    ]
+}
+sp.set_params(input_params)
 
 
 # --------------------------------------
@@ -123,3 +184,7 @@ xds_out_main = sw.extract_output()
 print('\noutput main mesh')
 print(xds_out_main)
 
+# extract output from nest1 mesh 
+xds_out_nest1 = sw.extract_output(mesh=sp.mesh_nested_list[0])
+print('\noutput nest1 mesh')
+print(xds_out_nest1)

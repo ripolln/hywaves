@@ -4,6 +4,7 @@
 import os
 import os.path as op
 import subprocess as sp
+import sys
 
 import numpy as np
 import xarray as xr
@@ -22,18 +23,51 @@ d_grid_template = {
     'mxc': None,      # number mesh x
     'myc': None,      # number mesh y
     'dxinp': None,    # size mesh x
-    'dyinp': None,    # size mesh y
+    'dyinp': None,    # size mesh y
 }
 
 # swan input parameters template
 d_params_template = {
-    'sea_level': None,
-    'jonswap_gamma': None,
-    'coords_spherical': None,  # None, 'GCM', 'CCM'
-    'cdcap': None,
-    'maxerr': None,            # None, 1, 2, 3
-    'waves_period': None,      # 'PEAK', 'MEAN'
-    'nested_bounds': None,     # 'CLOSED', 'OPEN'
+
+    # SET general parameters
+    'set_level': None,         # increase in water level (m)
+    'set_maxerr': None,        # input data error tolerance: 1 (default), 2, 3
+    'set_cdcap': None,         # max value for wind drag coeff (2.5*10^3): None, value
+    'set_convention': None,    # wind/waves dir convention: 'NAUTICAL', 'CARTESIAN' (default)
+
+    # COORDINATES
+    'coords_mode': None,       # 'CARTESIAN' (default), 'SPHERICAL' 
+    'coords_projection': None, # projection method: 'CCM' (default), 'QC'
+
+    # COMPUTATIONAL GRID
+    'cgrid_mdc': 72,           # spectral circle subdivisions
+    'cgrid_flow': 0.03,        # lowest discrete frequency used in the calculation (Hz) (0.03) 
+    'cgrid_fhigh': 1.00,       # highest discrete frequency used in the calculation (Hz) (1.00) 
+
+    # BOUNDARY WAVES
+    'boundw_jonswap': None,    # jonswap gamma: 3.3 (default)
+    'boundw_period': None,     # waves period: 'PEAK', 'MEAN' 
+
+    # BOUNDARY NESTED
+    'boundn_mode': None,       # input from main mesh to nested mesh: OPEN, CLOSED (default) 
+
+    # PHYSICS: See (http://swanmodel.sourceforge.net/online_doc/swanuse/node28.html)
+    'physics': [],            # list of raw .swn entries
+
+    # NUMERICS: See (http://swanmodel.sourceforge.net/online_doc/swanuse/node29.html)
+    'numerics': [],           # list of raw .swn entries
+
+    # -- exclusive NONSTAT parameters--
+
+    # INPUT GRIDs
+    'wind_deltinp': None,      # wind input delta time: '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
+    'level_deltinp': None,     # level input delta time: '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
+
+    # OUTPUT
+    'output_deltt': None,      # output delta time '5 MIN', '1 HR', ... (us: S
+
+    # COMPUTE
+    'compute_deltc': None,     # computation delta time '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
 }
 
 
@@ -42,25 +76,47 @@ class SwanMesh(object):
 
     def __init__(self):
 
-        self.depth = None   # bathymetry depth value (2D numpy.array)
-        self.depth_fn = ''  # filename used in SWAN execution
-        self.output_fn = ''  # output .mat file for mesh comp. grid
+        self.depth = None   # bathymetry depth value (2D numpy.array)
+
+        self.ID = ''        # mesh ID ("main", "nest1", ...)
+
+        # mesh related filenames
+        self.fn_depth = 'depth_{0}.dat'    # filename used in SWAN execution
+        self.fn_output = 'output_{0}.mat'  # output .mat file for mesh comp. grid
+        self.fn_input = 'input_{0}.swn'    # input .swn file
+
+        # for nested mesh
+        self.is_nested = False
+        self.fn_boundn = 'bounds_{0}.dat'  # input bounds file
 
         # grid parameters
         self.cg = d_grid_template.copy()  # computational grid
-        self.dg = d_grid_template.copy()  # depth grid
-        self.dg_idla = 1  # 1/3 input swan parameter, handles read order at readinp
+        self.dg = d_grid_template.copy()  # depth grid
+        self.dg_idla = 1  # http://swanmodel.sourceforge.net/online_doc/swanuse/node26.html
 
-    def export_dat(self, p_case):
+    def set_ID(self, ID):
+        'set mesh ID and related files names'
+
+        self.ID = ID
+
+        self.fn_depth = 'depth_{0}.dat'.format(ID)
+        self.fn_output = 'output_{0}.mat'.format(ID)
+        self.fn_input = 'input_{0}.swn'.format(ID)
+
+        self.fn_boundn = 'bounds_{0}.dat'.format(ID)
+
+    def export_depth(self, p_case):
         'exports depth values to .dat file'
 
-        p_export = op.join(p_case, self.depth_fn)
+        # TODO: only compatible with dg_idla = 1 ?
+
+        p_export = op.join(p_case, self.fn_depth)
         np.savetxt(p_export, self.depth, fmt='%.2f')
 
     def get_XY(self):
         'returns mesh X, Y arrays from computational grid'
 
-        # computational grid
+        # computational grid
         cg = self.cg
 
         x0 = cg['xpc']
@@ -89,38 +145,44 @@ class SwanProject(object):
         self.p_main = op.join(p_proj, n_proj)    # project path
         self.name = n_proj                       # project name
 
-        # sub folders 
+        # sub folders 
         self.p_cases = op.join(self.p_main, 'cases')  # project cases
 
-        # SWAN mesh: main 
-        self.mesh_main = SwanMesh()
-        self.mesh_main.depth_fn = 'depth_main.dat'
-        self.mesh_main.output_fn = 'output_main.mat'
+        # project main mesh and nested meshes
+        self.mesh_main = None       # SwanMesh object for main mesh
+        self.mesh_nested_list = []  # list of SwanMesh objects for nested meshes
 
-        # SWAN mesh: nest1
-        self.mesh_nest1 = SwanMesh()
-        self.mesh_nest1.depth_fn = 'depth_nest1.dat'
-        self.mesh_nest1.output_fn = 'output_nest1.mat'
-        self.run_nest1 = False
-
-        # SWAN mesh: nest2
-        self.mesh_nest2 = SwanMesh()
-        self.mesh_nest2.depth_fn = 'depth_nest2.dat'
-        self.mesh_nest2.output_fn = 'output_nest2.mat'
-        self.run_nest2 = False
-
-        # SWAN mesh: nest3
-        self.mesh_nest3 = SwanMesh()
-        self.mesh_nest3.depth_fn = 'depth_nest3.dat'
-        self.mesh_nest3.output_fn = 'output_nest3.mat'
-        self.run_nest3 = False
-
-        # swan execution parameteres
+        # swan execution parameters
         self.params = d_params_template.copy()
 
         # output points
         self.x_out = []
         self.y_out = []
+
+    def set_main_mesh(self, sm):
+        'Set main mesh, sm - SwanMesh object'
+
+        # main mesh ID 
+        sm.set_ID('main')
+        self.mesh_main = sm
+
+    def set_nested_mesh_list(self, sm_list):
+        'Set project nested mesh list, sm_list - SwanMesh objects list'
+
+        l_nested  = []
+        for c, sm_n in enumerate(sm_list):
+
+            # nest mesh ID
+            sm_n.set_ID('nest{0}'.format(c))
+            sm_n.is_nested = True
+            l_nested.append(sm_n)
+        self.mesh_nested_list = l_nested
+
+    def set_params(self, input_params):
+        'Set project parameters from input dictionary'
+
+        # update template parameters 
+        self.params = {**self.params, **input_params}
 
 
 class SwanWrap(object):
@@ -161,31 +223,20 @@ class SwanWrap(object):
         for p_run in run_dirs:
 
             # run case main mesh
-            self.run(p_run)
+            self.run(p_run, input_file = self.proj.mesh_main.fn_input)
 
-            # run case nested mesh (optional)
-            r_ns = [
-                self.proj.run_nest1,
-                self.proj.run_nest2,
-                self.proj.run_nest3,
-            ]
-            i_ns = [
-                'input_nest1.swn',
-                'input_nest2.swn',
-                'input_nest3.swn'
-            ]
-            for r_n, i_n in zip(r_ns, i_ns):
-                if r_n:
-                    self.run(p_run, input_file=i_n)
+            # run nested meshes
+            for mesh_n in self.proj.mesh_nested_list:
+                self.run(p_run, input_file = mesh_n.fn_input)
 
             # log
             p = op.basename(p_run)
             print('SWAN CASE: {0} SOLVED'.format(p))
 
-    def run(self, p_run, input_file='input.swn'):
+    def run(self, p_run, input_file='input_main.swn'):
         'Bash execution commands for launching SWAN'
 
-        # aux. func. for launching bash command
+        # aux. func. for launching bash command
         def bash_cmd(str_cmd, out_file=None, err_file=None):
             'Launch bash command using subprocess library'
 
@@ -207,13 +258,13 @@ class SwanWrap(object):
                 _stderr.flush()
                 _stderr.close()
 
-        # check if windows OS
+        # check if windows OS
         is_win = sys.platform.startswith('win')
 
         if is_win:
             # WINDOWS - use swashrun command
-            cmd = 'cd {0} && swashrun input && {1} input'.format(
-                p_run, self.bin)
+            cmd = 'cd {0} && copy {1} INPUT && {2} INPUT'.format(
+                p_run, input_file, self.bin)
 
         else:
             # LINUX/MAC - ln input file and run swan case
@@ -221,55 +272,6 @@ class SwanWrap(object):
                 p_run, input_file, self.bin)
 
         bash_cmd(cmd)
-
-    def extract_output(self, mesh=None):
-        '''
-        exctract output from all cases
-
-        return xarray.Dataset (uses new dim "case" to join output)
-        '''
-
-        # select main or nested mesh
-        if mesh == None: mesh = self.proj.mesh_main
-
-        # get sorted execution folders
-        run_dirs = self.get_run_folders()
-
-        # exctract output case by case and concat in list
-        l_out = []
-        for p_run in run_dirs:
-
-            # read output file
-            xds_case_out = self.io.output_case(p_run, mesh)
-            l_out.append(xds_case_out)
-
-        # concatenate xarray datasets (new dim: case)
-        xds_out = xr.concat(l_out, dim='case')
-
-        return(xds_out)
-
-    def extract_output_points(self):
-        '''
-        exctract output from points all cases table_outpts.dat
-
-        return xarray.Dataset (uses new dim "case" to join output)
-        '''
-
-        # get sorted execution folders
-        run_dirs = self.get_run_folders()
-
-        # exctract output case by case and concat in list
-        l_out = []
-        for p_run in run_dirs:
-
-            # read output file
-            xds_case_out = self.io.output_points(p_run)
-            l_out.append(xds_case_out)
-
-        # concatenate xarray datasets (new dim: case)
-        xds_out = xr.concat(l_out, dim='case')
-
-        return(xds_out)
 
 
 class SwanWrap_STAT(SwanWrap):
@@ -296,6 +298,57 @@ class SwanWrap_STAT(SwanWrap):
             case_id = '{0:04d}'.format(ix)
             self.io.build_case(case_id, ws)
 
+    def extract_output(self, mesh=None):
+        '''
+        exctract output for swan stationary cases
+
+        return xarray.Dataset (uses new dim "case" to join output)
+        '''
+
+        # select main or nested mesh
+        if mesh == None: mesh = self.proj.mesh_main
+
+        # get sorted execution folders
+        run_dirs = self.get_run_folders()
+
+        # exctract output case by case and concat in list
+        l_out = []
+        for p_run in run_dirs:
+
+            # read output file
+            xds_case_out = self.io.output_case(p_run, mesh)
+            l_out.append(xds_case_out)
+
+        # concatenate xarray datasets (new dim: case)
+        xds_out = xr.concat(l_out, dim='case')
+
+        return(xds_out)
+
+    def extract_output_points(self):
+        '''
+        extract output from points all cases table_outpts.dat
+
+        return xarray.Dataset (uses new dim "case" to join output)
+        '''
+
+        # TODO: integrate mesh, same as for "extract_output"
+
+        # get sorted execution folders
+        run_dirs = self.get_run_folders()
+
+        # exctract output case by case and concat in list
+        l_out = []
+        for p_run in run_dirs:
+
+            # read output file
+            xds_case_out = self.io.output_points(p_run)
+            l_out.append(xds_case_out)
+
+        # concatenate xarray datasets (new dim: case)
+        xds_out = xr.concat(l_out, dim='case')
+
+        return(xds_out)
+
 
 class SwanWrap_NONSTAT(SwanWrap):
     'SWAN numerical model wrap for NON STATIONARY multi-case handling'
@@ -304,7 +357,7 @@ class SwanWrap_NONSTAT(SwanWrap):
         super().__init__(swan_proj, SwanIO_NONSTAT)
 
     def build_cases(self, waves_event_list, storm_track_list=None,
-                    make_waves=True, make_winds=True):
+                    make_waves=True, make_winds=True, make_levels=True):
         '''
         generates all files needed for swan non-stationary multi-case execution
 
@@ -334,4 +387,65 @@ class SwanWrap_NONSTAT(SwanWrap):
                 case_id, wds, storm_track=sds,
                 make_waves=make_waves, make_winds=make_winds
             )
+
+    def extract_output(self, case_ini=None, case_end=None, mesh=None):
+        '''
+        exctract output from non stationary cases
+        (it is possible to choose which cases to extract)
+
+        return xarray.Dataset (uses new dim "case" to join output)
+        '''
+
+        # select main or nested mesh
+        if mesh == None: mesh = self.proj.mesh_main
+
+        # get sorted execution folders
+        run_dirs = self.get_run_folders()
+        if (case_ini != None) & (case_end != None):
+            run_dirs=run_dirs[case_ini:case_end]
+
+        # exctract output case by case and concat in list
+        l_out = []
+        for p_run in run_dirs:
+
+            # read output file
+            xds_case_out = self.io.output_case(p_run, mesh)
+            l_out.append(xds_case_out)
+
+        # concatenate xarray datasets (new dim: case)
+        xds_out = xr.concat(l_out, dim='case')
+        if (case_ini != None) & (case_end != None):
+            xds_out = xds_out.assign(case=np.arange(case_ini, case_end))
+
+        return(xds_out)
+
+    def extract_output_points(self, case_ini=None, case_end=None):
+        '''
+        extract output from points all cases table_outpts.dat
+        (it is possible to choose which cases to extract)
+
+        return xarray.Dataset (uses new dim "case" to join output)
+        '''
+
+        # TODO: integrate mesh, same as for "extract_output"
+
+        # get sorted execution folders
+        run_dirs = self.get_run_folders()
+        if (case_ini != None) & (case_end != None):
+            run_dirs=run_dirs[case_ini:case_end]
+
+        # exctract output case by case and concat in list
+        l_out = []
+        for p_run in run_dirs:
+
+            # read output file
+            xds_case_out = self.io.output_points(p_run)
+            l_out.append(xds_case_out)
+
+        # concatenate xarray datasets (new dim: case)
+        xds_out = xr.concat(l_out, dim='case')
+        if (case_ini != None) & (case_end != None):
+            xds_out = xds_out.assign(case=np.arange(case_ini, case_end))
+
+        return(xds_out)
 

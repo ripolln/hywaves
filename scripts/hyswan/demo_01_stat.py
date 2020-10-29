@@ -14,7 +14,7 @@ import xarray as xr
 sys.path.insert(0, op.join(op.dirname(__file__), '..', '..'))
 
 # swan wrap module
-from hywaves.swan.wrap import SwanProject, SwanWrap_STAT
+from hywaves.swan.wrap import SwanProject, SwanMesh, SwanWrap_STAT
 
 
 # --------------------------------------
@@ -58,9 +58,10 @@ sp = SwanProject(p_proj, n_proj)
 
 # --------------------------------------
 # SWAN main mesh
+main_mesh = SwanMesh()
 
 # depth grid description (input bathymetry grid)
-sp.mesh_main.dg = {
+main_mesh.dg = {
     'xpc': 0,      # x origin
     'ypc': 0,      # y origin
     'alpc': 0,     # x-axis direction 
@@ -73,10 +74,10 @@ sp.mesh_main.dg = {
 }
 
 # depth value
-sp.mesh_main.depth = np.ones((2,2)) * 155
+main_mesh.depth = np.ones((2,2)) * 155
 
 # computational grid description
-sp.mesh_main.cg = {
+main_mesh.cg = {
     'xpc': 0,
     'ypc': 0,
     'alpc': 0,
@@ -88,12 +89,15 @@ sp.mesh_main.cg = {
     'dyinp': 20,
 }
 
+sp.set_main_mesh(main_mesh)
+
 
 # --------------------------------------
-# SWAN nest1 mesh (allows nest1, nest2 and nest3)
+# SWAN nest1 mesh
+mesh_nest1 = SwanMesh()
 
 # depth grid description
-sp.mesh_nest1.dg = {
+mesh_nest1.dg = {
     'xpc': 50,
     'ypc': 100,
     'alpc': 0,
@@ -106,10 +110,10 @@ sp.mesh_nest1.dg = {
 }
 
 # depth value
-sp.mesh_nest1.depth = np.ones((10,8)) * 158
+mesh_nest1.depth = np.ones((10,8)) * 158
 
 # computational grid description
-sp.mesh_nest1.cg = {
+mesh_nest1.cg = {
     'xpc': 50,
     'ypc': 100,
     'alpc': 0,
@@ -121,20 +125,29 @@ sp.mesh_nest1.cg = {
     'dyinp': 10,
 }
 
-# activate nest1
-sp.run_nest1 = True
-
+sp.set_nested_mesh_list([mesh_nest1])
 
 # --------------------------------------
 # SWAN parameters (sea level, jonswap gamma)
+input_params = {
+    'set_level': 4,
+    'set_convention': 'NAUTICAL',
 
-sp.params = {
-    'sea_level': 4,
-    'jonswap_gamma': 1.9,
-    'coords_spherical': None,   # None, 'GCM', 'CCM' 
-    'waves_period': 'MEAN',     # 'PEAK / MEAN'
-    'nested_bounds': 'CLOSED',  # 'CLOSED' / 'OPEN'
+    'boundw_jonswap': 1.9,
+    'boundw_period': 'MEAN',
+
+    'boundn_mode': 'CLOSED',
+
+    'physics':[
+        'FRICTION JONSWAP',
+        'BREAKING',
+    ],
+
+    'numerics':[
+        'OFF QUAD',
+    ]
 }
+sp.set_params(input_params)
 
 
 # --------------------------------------
@@ -155,7 +168,7 @@ print(xds_out_main)
 print()
 
 # extract output from nest1 mesh 
-xds_out_nest1 = sw.extract_output(mesh=sp.mesh_nest1)
+xds_out_nest1 = sw.extract_output(mesh=sp.mesh_nested_list[0])
 print('\noutput nest1 mesh')
 print(xds_out_nest1)
 

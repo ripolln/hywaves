@@ -7,7 +7,7 @@ import numpy as np
 def gc_distance(lat1, lon1, lat2, lon2):
     'Calculate great circle distance and azimuth (exact. parsed ml)'
 
-    # distance
+    # distance
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
 
     a = sin((lat2-lat1)/2)**2 + cos(lat1) * cos(lat2) * sin((lon2-lon1)/2)**2;
@@ -40,7 +40,7 @@ def shoot(lon, lat, azimuth, maxdist=None):
     """
     glat1 = lat * np.pi / 180.
     glon1 = lon * np.pi / 180.
-    s = maxdist / 1.852
+    s = maxdist / 1.852         # from n mi to km
     faz = azimuth * np.pi / 180.
 
     EPS= 0.00000000005
@@ -99,3 +99,23 @@ def shoot(lon, lat, azimuth, maxdist=None):
     baz *= 180./np.pi
 
     return (glon2, glat2, baz)
+
+def geo_distance_azimuth(lat_matrix, lon_matrix, lat_point, lon_point):
+    '''
+    Returns geodesic distance and azimuth between lat,lon matrix and lat,lon
+    point in degrees
+    '''
+
+    arcl = np.zeros(lat_matrix.shape) * np.nan
+    azi = np.zeros(lat_matrix.shape) * np.nan
+
+    sh1, sh2 = lat_matrix.shape
+
+    for i in range(sh1):
+        for j in range(sh2):
+            arcl[i,j], azi[i,j] = gc_distance(
+                lat_point, lon_point, lat_matrix[i][j], lon_matrix[i][j]
+            )
+
+    return arcl, azi
+

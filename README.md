@@ -20,6 +20,7 @@ A hybrid metamodel (numerical-statistical) approach to optimize complex waves ca
 8. [License](#lic)
 
 
+- - -
 <a name="desc"></a>
 ## Description
 
@@ -53,8 +54,8 @@ Numerical models
 
 Statistical modules 
 
-- [mda](./hyswan/mda.py): MaxDiss classification module 
-- [rbf](./hyswan/rbf.py): Radial Basis Function module
+- [mda](./hyswan/statistical/mda.py): MaxDiss classification module 
+- [rbf](./hyswan/statistical/rbf.py): Radial Basis Function module
 
 
 <a name="doc"></a>
@@ -182,12 +183,14 @@ Copy SWASH binary file to module resources
 
 - [demo 01 - STATIONARY](./scripts/hyswan/demo_01_stat.py): stationary example
 - [demo 02 - NON-STATIONARY](./scripts/hyswan/demo_02_nonstat.py): non-stationary example 
-- [demo 03 - VORTEX](./scripts/hyswan/demo_03_nonstat_vortex.py): non-stationary with TCs Vortex Model example 
+- [demo 03 - VORTEX PARAMETERS](./scripts/hyswan/demo_03_nonstat_vortex_params.py): non-stationary with TCs Vortex Model example (from parameters) 
+- [demo 03 - VORTEX HISTORICAL](./scripts/hyswan/demo_03_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation) 
 
 <a name="exp_2"></a>
 ### HySWAN: MDA -> SWAN -> RBF metamodel 
 
-- [notebook - HySWAN Metamodel](./notebooks/hyswan/MDA_SWAN_RBF.ipynb): HySWAN example: simplified metamodel waves propagation
+- [notebook - HySWAN Metamodel](./notebooks/hyswan/nb_01_MDA_SWAN_RBF.ipynb): HySWAN example: simplified metamodel waves propagation
+- [notebook - HySWAN TCs](./notebooks/hyswan/nb_02_Vortex_Hemispheres.ipynb): HySWAN example: Vortex simulation from storm tracks
 
 <a name="exp_3"></a>
 ### SWASH numerical wrap 
