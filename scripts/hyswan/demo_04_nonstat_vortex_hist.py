@@ -231,7 +231,7 @@ st_time, ylat_tc, ylon_tc, ycpres, ywind, ts, categ = historic_track_preprocessi
 dt_interp = 30  # minutes
 st, time_input = historic_track_interpolation(
     st_time, ylon_tc, ylat_tc, ycpres, ywind,
-    y0, x0, lat[0], lon[0], lat[1], lon[1],
+    y0, x0, lat[0], lon[0], lat[-1], lon[-1],
     ts, dt_interp, wind=ywind,
     great_circle=True)
 
