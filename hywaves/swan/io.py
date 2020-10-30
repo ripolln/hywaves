@@ -393,8 +393,8 @@ class SwanIO_NONSTAT(SwanIO):
         'Generates desired output-points coordinates file'
 
         # define and save output points
-        x_out = self.proj.x_out
-        y_out = self.proj.y_out
+        x_out = self.proj.params['output_points_x']
+        y_out = self.proj.params['output_points_y']
 
         if not x_out or not y_out:
             return
@@ -769,8 +769,9 @@ class SwanIO_NONSTAT(SwanIO):
             mesh.fn_output, t0_iso, dt_out)
 
         # -- OUTPUT: POINTS  -- 
-        x_out = self.proj.x_out
-        y_out = self.proj.y_out
+        x_out = self.proj.params['output_points_x']
+        y_out = self.proj.params['output_points_y']
+
         if not x_out or not y_out:
             pass
         else:
@@ -929,8 +930,8 @@ class SwanIO_NONSTAT(SwanIO):
         names = ['DEP', 'HS', 'HSWELL', 'DIR', 'RTP', 'TM02', 'DSPR', 'WIND',
                  'WATLEV', 'OUT' ]
 
-        x_out = self.proj.x_out
-        y_out = self.proj.y_out
+        x_out = self.proj.params['output_points_x']
+        y_out = self.proj.params['output_points_y']
 
         # points are mixed at output file
         np_pts = np.genfromtxt(p_dat)

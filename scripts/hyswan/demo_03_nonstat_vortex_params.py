@@ -138,6 +138,9 @@ input_params = {
     'compute_deltc': '30 MIN',
     'output_deltt': '30 MIN',
 
+    'output_points_x': [167.5, 167.5, 167],
+    'output_points_y': [9.5, 9.6, 9.45],
+
     'physics':[
         'WIND DRAG WU',
         'GEN3 ST6 5.7E-7 8.0E-6 4.0 4.0 UP HWANG VECTAU TRUE10',
@@ -153,11 +156,6 @@ input_params = {
     ]
 }
 sp.set_params(input_params)
-
-
-# SWAN output points
-sp.x_out = [167.5, 167.5, 167]
-sp.y_out = [9.5, 9.6, 9.45]
 
 
 # --------------------------------------

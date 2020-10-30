@@ -64,7 +64,9 @@ d_params_template = {
     'level_deltinp': None,     # level input delta time: '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
 
     # OUTPUT
-    'output_deltt': None,      # output delta time '5 MIN', '1 HR', ... (us: S
+    'output_deltt': None,      # output delta time '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
+    'output_points_x': [],     # output points x coordinate list 
+    'output_points_y': [],     # output points y coordinate list 
 
     # COMPUTE
     'compute_deltc': None,     # computation delta time '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
@@ -155,9 +157,8 @@ class SwanProject(object):
         # swan execution parameters
         self.params = d_params_template.copy()
 
-        # output points
-        self.x_out = []
-        self.y_out = []
+        # additional data (optional, used at plots)
+        self.shore = np.array([])
 
     def set_main_mesh(self, sm):
         'Set main mesh, sm - SwanMesh object'
