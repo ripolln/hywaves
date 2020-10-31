@@ -7,6 +7,10 @@ from math import sqrt
 import numpy as np
 from scipy import interpolate
 
+import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+from matplotlib import cm
+
 
 def GetDivisors(x):
     l_div = []
@@ -72,3 +76,41 @@ def calc_quiver(X, Y, var, vdir, size=30):
     # plot quiver
     return x_q, y_q, var_q, u, v
 
+
+# aux matplotlib utils
+
+def custom_cmap(numcolors, map1, m1ini, m1end, map2, m2ini, m2end):
+    '''
+    Generate custom colormap
+    Example: Red-Orange-Yellow-Green-Blue -- map1='YlOrRd' map2='YlGnBu_r'
+    mXini, mXend:   colormap range of colors
+    numcolors:      number of colors (100-continuous, 15-discretization)
+    '''
+
+    # color maps
+    cmap1 = plt.get_cmap(map1, numcolors)
+    cmap2 = plt.get_cmap(map2, numcolors)
+
+    # custom color ranges
+    cmap1v = colors.LinearSegmentedColormap.from_list(
+            'trunc({n},{a:.2f},{b:.2f})'.format(
+                n=cmap1.name, a=m1ini, b=m1end),
+            cmap1(np.linspace(m1ini,m1end,100))
+    )
+
+    cmap2v = colors.LinearSegmentedColormap.from_list(
+            'trunc({n},{a:.2f},{b:.2f})'.format(
+                n=cmap2.name, a=m2ini, b=m2end),
+            cmap2(np.linspace(m2ini,m2end,100))
+    )
+
+    top = cm.get_cmap(cmap1v, 128)
+    bottom = cm.get_cmap(cmap2v, 128)
+
+    newcolors = np.vstack((
+        bottom(np.linspace(0,1,128)),
+        top(np.linspace(0,1,128))
+    ))
+    newcmp = colors.ListedColormap(newcolors, name='OrangeBlue')
+
+    return newcmp
