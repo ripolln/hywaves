@@ -182,9 +182,11 @@ Copy SWASH binary file to module resources
 ### SWAN numerical wrap 
 
 - [demo 01 - STATIONARY](./scripts/hyswan/demo_01_stat.py): stationary example
-- [demo 02 - NON-STATIONARY](./scripts/hyswan/demo_02_nonstat.py): non-stationary example 
-- [demo 03 - VORTEX PARAMETERS](./scripts/hyswan/demo_03_nonstat_vortex_params.py): non-stationary with TCs Vortex Model example (from parameters) 
-- [demo 03 - VORTEX HISTORICAL](./scripts/hyswan/demo_03_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation) 
+- [demo 02 - NON-STATIONARY](./scripts/hyswan/demo_02_nonstat.py): non-stationary example
+- [demo 03 - VORTEX PARAMETERS](./scripts/hyswan/demo_03_nonstat_vortex_params.py): non-stationary with TCs Vortex Model example (from parameters)
+- [demo 03 - VORTEX HISTORICAL](./scripts/hyswan/demo_03_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation)
+
+- [notebook - SWAN Vortex Historical](./notebooks/hyswan/nb_02_Vortex_Historical.ipynb): non-stationary storm Vortex model simulation from historical storm track
 
 <a name="exp_2"></a>
 ### HySWAN: MDA -> SWAN -> RBF metamodel 
@@ -192,9 +194,8 @@ Copy SWASH binary file to module resources
 - [notebook - HySWAN Metamodel](./notebooks/hyswan/nb_01_MDA_SWAN_RBF.ipynb): HySWAN example: simplified metamodel waves propagation
 
 <a name="exp_3"></a>
-### SWAN: Storm Vortex Model 
+### HySWAN: Storm Vortex Model
 
-- [notebook - SWAN Vortex Historical](./notebooks/hyswan/nb_02_Vortex_Historical.ipynb): Vortex simulation from historical storm track
 
 <a name="exp_4"></a>
 ### SWASH numerical wrap 
