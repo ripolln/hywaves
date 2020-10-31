@@ -49,7 +49,7 @@ d_params_template = {
     'boundw_period': None,     # waves period: 'PEAK', 'MEAN' 
 
     # BOUNDARY NESTED
-    'boundn_mode': None,       # input from main mesh to nested mesh: OPEN, CLOSED (default) 
+    'boundn_mode': 'CLOSED',   # input from main mesh to nested mesh: OPEN, CLOSED (default) 
 
     # PHYSICS: See (http://swanmodel.sourceforge.net/online_doc/swanuse/node28.html)
     'physics': [],            # list of raw .swn entries
