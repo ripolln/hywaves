@@ -958,7 +958,8 @@ class SwanIO_NONSTAT(SwanIO):
         xds_out['y_point'] = (('point'), y_out)
 
         # add times dim values
-        t0, dt_min = self.get_t0_dt(op.join(p_case, 'input.swn'))
+        p_swn = op.join(p_case, self.proj.mesh_main.fn_input)
+        t0, dt_min = self.get_t0_dt(p_swn)
         time_out = pd.date_range(t0, periods=len(xds_out.time), freq='{0}min'.format(dt_min))
         xds_out = xds_out.assign_coords(time=time_out)
 
