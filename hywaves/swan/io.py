@@ -646,8 +646,8 @@ class SwanIO_NONSTAT(SwanIO):
                 'Dir': (('lat','lon','time'), hld_D, {'units':'º'})
             },
             coords={
-                'Y' : cg_lat,
-                'X' : cg_lon,
+                'lat' : cg_lat,
+                'lon' : cg_lon,
                 'time' : times,
             }
         )
@@ -776,8 +776,8 @@ class SwanIO_NONSTAT(SwanIO):
             pass
         else:
             t += "POINTS 'outpts' FILE 'points_out.dat'\n"
-            t += "TABLE 'outpts' NOHEAD 'table_outpts.dat' DEP HS HSWELL DIR RTP TM02 DSPR WIND WATLEV  OUT {0} {1}\n$\n".format(
-                t0_iso, dt_out)
+            t += "TABLE 'outpts' NOHEAD '{0}' DEP HS HSWELL DIR RTP TM02 DSPR WIND WATLEV  OUT {1} {2}\n$\n".format(
+                mesh.fn_output_points, t0_iso, dt_out)
 
         # -- COMPUTE --
         compute_deltc = self.proj.params['compute_deltc']
@@ -921,10 +921,11 @@ class SwanIO_NONSTAT(SwanIO):
 
         return t0, dt_min
 
-    def output_points(self, p_case):
-        'read table_outpts.dat output file and returns xarray.Dataset'
+    def output_points(self, p_case, mesh):
+        'read table_outpts_meshID.dat output file and returns xarray.Dataset'
 
-        p_dat = op.join(p_case, 'table_outpts.dat')
+        # extract output from selected mesh
+        p_dat = op.join(p_case, mesh.fn_output_points)
 
         # variable names
         names = ['DEP', 'HS', 'HSWELL', 'DIR', 'RTP', 'TM02', 'DSPR', 'WIND',
@@ -956,6 +957,9 @@ class SwanIO_NONSTAT(SwanIO):
         # add point x and y
         xds_out['x_point'] = (('point'), x_out)
         xds_out['y_point'] = (('point'), y_out)
+
+        # mesh ID
+        xds_out.attrs['mesh_ID'] = mesh.ID
 
         # add times dim values
         p_swn = op.join(p_case, self.proj.mesh_main.fn_input)
