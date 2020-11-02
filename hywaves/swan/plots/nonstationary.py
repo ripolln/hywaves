@@ -19,12 +19,12 @@ from ..storms import get_category
 
 
 # TODO:
-#    PLOT TIME SERIES POINT OUTPUT
 #    PLOT VIDEO PANEL WINDS INPUT - VAR OUTPUT
 # 
-#    REFACTOR plots/nonstationary (y mesh/io/wrap)
+#    MEJORAR/COMPLETAR PLOTEOS
+#    REFACTOR reordenar bien la libreria y la separacion: data / figura / axis-objeto 
 #    REPASO IMPORTs
-#    DOC 
+#    DOCUMENTAR 
 
 # aux.functions
 
@@ -105,6 +105,7 @@ def axplot_var_map(ax, XX, YY, vv,
         cmap=cmap,
         vmin=vmin, vmax=vmax,
         shading='auto',
+        #zorder=0,
     )
 
     # fix axes
@@ -123,8 +124,8 @@ def axplot_storm_track(ax, st, cat_colors=True):
 
     # plot track
     plt.plot(
-        st.lon, st.lat, '-', linewidth=2,
-        color='darkgrey', label='Storm Track'
+        st.lon, st.lat, '-', linewidth=4,
+        color='black', label='Storm Track'
     )
 
     # plot categories
@@ -210,6 +211,9 @@ def plot_project_site(swan_proj):
     # turn on legend
     plt.legend(loc='upper right', prop={'size':10})
 
+    # equal axis
+    axs.set_aspect('equal', 'box')
+
     return fig
 
 def plot_case_input(swan_proj, storm_track_list=[], case_number=0):
@@ -231,10 +235,6 @@ def plot_case_input(swan_proj, storm_track_list=[], case_number=0):
         nrows=1, ncols=1,
         figsize=(_fsize*_faspect, _fsize),
     )
-
-    # mesh values
-    mesh = swan_proj.mesh_main
-    XX, YY, _ = mesh2np(mesh)
 
     # mesh coordinates labels
     axplot_labels(axs, swan_proj.params['coords_mode'])
@@ -270,6 +270,9 @@ def plot_case_input(swan_proj, storm_track_list=[], case_number=0):
 
     axs.set_facecolor('lightcyan')
 
+    # equal axis
+    axs.set_aspect('equal', 'box')
+
     return fig
 
 def plot_case_vortex_grafiti(swan_wrap, storm_track_list=[], case_number=0,
@@ -290,7 +293,6 @@ def plot_case_vortex_grafiti(swan_wrap, storm_track_list=[], case_number=0,
     p_case = op.join(swan_proj.p_cases, case_id)
     code = 'wind_{0}'.format(mesh.ID)
     p_vortex = op.join(p_case, 'vortex_{0}.nc'.format(code))
-
     xds_vortex = xr.open_dataset(p_vortex)
     var_name = 'W'
 
@@ -306,13 +308,8 @@ def plot_case_vortex_grafiti(swan_wrap, storm_track_list=[], case_number=0,
     var_units = xds_var.units
 
     # get mesh data from output dataset
-    coords_mode = swan_proj.params['coords_mode']
-    if coords_mode == 'SPHERICAL':
-        xa, ya = 'lon', 'lat'
-    else:
-        xa, ya = 'X', 'Y'
-    X = xds_var[xa].values[:]
-    Y = xds_var[ya].values[:]
+    X = xds_var['lon'].values[:]
+    Y = xds_var['lat'].values[:]
 
     # maximum and minimum values 
     vmax = float(xds_var.max().values)
@@ -354,8 +351,10 @@ def plot_case_vortex_grafiti(swan_wrap, storm_track_list=[], case_number=0,
             swan_proj.name, case_number ),
         fontsize=16, fontweight='bold')
 
-    return fig
+    # equal axis
+    axs.set_aspect('equal', 'box')
 
+    return fig
 
 def plot_case_output_grafiti(
     swan_wrap, var_name='Hsig', case=0, mesh=None,
@@ -445,7 +444,83 @@ def plot_case_output_grafiti(
             swan_proj.name, case, ttl_t),
         fontsize=16, fontweight='bold')
 
+    # equal axis
+    axs.set_aspect('equal', 'box')
+
     return fig
 
 
+
+# TODO: obtuso, refactor!
+def axplot_series(ax, xda_v, lc, mesh_ID):
+    'axes plot variables series'
+
+    # values and time
+    vvs = xda_v.values[:]
+    vts = xda_v.time.values[:]
+
+    # plot series
+    ax.plot(
+        vts, vvs,
+        linestyle='-', linewidth=2, color=lc,
+        label = mesh_ID,
+    )
+
+    ax.set_xlim(vts[0], vts[-1])
+
+def plot_case_output_points(swan_wrap, point=0, case=0):
+    '''
+    # TODO doc
+    '''
+
+    # extract output from main mesh
+    mm = swan_wrap.proj.mesh_main
+    mm_op = swan_wrap.extract_output_points(mesh=mm)
+
+    # extract output from nested meshes
+    l_mn_op = [swan_wrap.extract_output_points(mesh=m) \
+               for m in swan_wrap.proj.mesh_nested_list]
+
+    # select case and point
+    mm_op = mm_op.sel(case=case, point=point)
+    l_mn_op = [x.sel(case=case, point=point) for x in l_mn_op]
+
+    # vars to plot
+    block = ['x_point', 'y_point', 'time', 'DEP', 'OUT']
+    vns = [v for v in mm_op.variables if v not in block]
+    n_axis = len(vns)
+
+    # figure
+    fig, (axs) = plt.subplots(
+        nrows=n_axis, ncols=1,
+        figsize=(_fsize*_faspect, (_fsize/3)*n_axis),
+        sharex = True,
+    )
+
+    # TODO completar y mover/incorporar a la extraccion del output 
+    vn_lab = dict(zip(vns, vns))
+    vn_lab.update(
+        {
+            'HS': 'Significant Wave Height (m)',
+            'TM02': 'Mean Period (s)',
+        }
+    )
+    nm_cs = ['r'] * len(l_mn_op)  # TODO each nested mesh output line plot color
+
+    for c, vn in enumerate(vns):
+
+        # plot main mesh 
+        axplot_series(axs[c], mm_op[vn], 'black', mm_op.attrs['mesh_ID'])
+
+        # plot nestes meshes
+        for nm, nmc in zip(l_mn_op, nm_cs):
+            axplot_series(axs[c], nm[vn], nmc, nm.attrs['mesh_ID'])
+
+        # customize axes and labels
+        axs[c].set_ylabel(vn_lab[vn], rotation=90, fontweight='bold', labelpad=35)
+
+        if c==0:
+            axs[c].legend()
+
+    return fig
 
