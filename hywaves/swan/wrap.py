@@ -85,6 +85,7 @@ class SwanMesh(object):
         # mesh related filenames
         self.fn_depth = 'depth_{0}.dat'    # filename used in SWAN execution
         self.fn_output = 'output_{0}.mat'  # output .mat file for mesh comp. grid
+        self.fn_output_points = 'table_outpts_{0}.dat'  # output points file
         self.fn_input = 'input_{0}.swn'    # input .swn file
 
         # for nested mesh
@@ -103,6 +104,7 @@ class SwanMesh(object):
 
         self.fn_depth = 'depth_{0}.dat'.format(ID)
         self.fn_output = 'output_{0}.mat'.format(ID)
+        self.fn_output_points = 'table_outpts_{0}.dat'.format(ID)
         self.fn_input = 'input_{0}.swn'.format(ID)
 
         self.fn_boundn = 'bounds_{0}.dat'.format(ID)
@@ -389,6 +391,7 @@ class SwanWrap_NONSTAT(SwanWrap):
                 make_waves=make_waves, make_winds=make_winds
             )
 
+    # TODO refactor la metodologia case_ini, case_end
     def extract_output(self, case_ini=None, case_end=None, mesh=None):
         '''
         exctract output from non stationary cases
@@ -420,7 +423,7 @@ class SwanWrap_NONSTAT(SwanWrap):
 
         return(xds_out)
 
-    def extract_output_points(self, case_ini=None, case_end=None):
+    def extract_output_points(self, case_ini=None, case_end=None, mesh=None):
         '''
         extract output from points all cases table_outpts.dat
         (it is possible to choose which cases to extract)
@@ -428,19 +431,20 @@ class SwanWrap_NONSTAT(SwanWrap):
         return xarray.Dataset (uses new dim "case" to join output)
         '''
 
-        # TODO: integrate mesh, same as for "extract_output"
+        # select main or nested mesh
+        if mesh == None: mesh = self.proj.mesh_main
 
         # get sorted execution folders
         run_dirs = self.get_run_folders()
         if (case_ini != None) & (case_end != None):
-            run_dirs=run_dirs[case_ini:case_end]
+            run_dirs = run_dirs[case_ini:case_end]
 
         # exctract output case by case and concat in list
         l_out = []
         for p_run in run_dirs:
 
             # read output file
-            xds_case_out = self.io.output_points(p_run)
+            xds_case_out = self.io.output_points(p_run, mesh)
             l_out.append(xds_case_out)
 
         # concatenate xarray datasets (new dim: case)
