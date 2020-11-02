@@ -186,7 +186,7 @@ def swn_inp_levels_nonstat(proj, mesh, t0_iso, t1_iso):
     level_idla = 3 # TODO: comprobar archivos level se generan acorde
 
     t = ''
-    t += 'INPGRID  WLEV  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} 1 HR {9}\n'.format(
+    t += 'INPGRID  WLEV  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} {8} {9}\n'.format(
         mesh.cg['xpc'], mesh.cg['ypc'], mesh.cg['alpc'],
         mesh.cg['mxc']-1, mesh.cg['myc']-1, mesh.cg['dxinp'], mesh.cg['dyinp'],
         t0_iso, level_deltinp, t1_iso)
@@ -203,7 +203,7 @@ def swn_inp_winds_nonstat(proj, mesh, t0_iso, t1_iso):
     wind_idla = 3 # TODO: comprobar archivos wind se generan acorde
 
     t = ''
-    t += 'INPGRID  WIND  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} 1 HR {9}\n'.format(
+    t += 'INPGRID  WIND  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} {8} {9}\n'.format(
         mesh.cg['xpc'], mesh.cg['ypc'], mesh.cg['alpc'],
         mesh.cg['mxc']-1, mesh.cg['myc']-1, mesh.cg['dxinp'], mesh.cg['dyinp'],
         t0_iso, wind_deltinp, t1_iso)
