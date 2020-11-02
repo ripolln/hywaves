@@ -45,7 +45,7 @@ setup(
     license          = 'LICENSE.txt',
     python_requires  = ">=3.6",
     install_requires = install_requires(),
-    packages         = ['hywaves', 'hywaves.swan', 'hywaves.swash',
+    packages         = ['hywaves', 'hywaves.statistical', 'hywaves.swan', 'hywaves.swash',
                         'hywaves.test'],
     package_data     = {'hywaves' : ['resources/*']},
     scripts          = [],
