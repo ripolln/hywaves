@@ -388,7 +388,8 @@ class SwanWrap_NONSTAT(SwanWrap):
             case_id = '{0:04d}'.format(ix)
             self.io.build_case(
                 case_id, wds, storm_track=sds,
-                make_waves=make_waves, make_winds=make_winds
+                make_waves=make_waves, make_winds=make_winds,
+                make_levels=make_levels,
             )
 
     # TODO refactor la metodologia case_ini, case_end
