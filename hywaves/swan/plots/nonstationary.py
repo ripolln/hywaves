@@ -298,50 +298,48 @@ def plot_case_vortex_input(swan_wrap, storm_track_list=[], t_num=10, case_number
     p_case = op.join(swan_proj.p_cases, case_id)
     code = 'wind_{0}'.format(mesh.ID)
     p_vortex = op.join(p_case, 'vortex_{0}.nc'.format(code))
-    xds_vortex = xr.open_dataset(p_vortex)
-    var_name = 'W'
 
+    xds_vortex = xr.open_dataset(p_vortex)
+
+    # select time to plot
+    xds_v = xds_vortex.isel(time=t_num)
+
+    # get mesh data from vortex dataset
+    X = xds_v['lon'].values[:]
+    Y = xds_v['lat'].values[:]
+
+    # vortex wind and dir
+    xds_v_wnd = xds_v['W']
+    xds_v_dir = xds_v['Dir']
 
     # figure
     fig, (axs) = plt.subplots(
         nrows=1, ncols=1,
         figsize=(_fsize*_faspect, _fsize),
     )
-    
-    time_n = xds_vortex.time.values[t_num]
 
-    # plot vortex
-    xds_var = xds_vortex[var_name]
-    var_units = xds_var.units
+    # maximum and minimum wind values 
+    vmax = float(xds_v_wnd.max().values)
+    vmin = float(xds_v_wnd.min().values)
+    wind_units = xds_v_wnd.units
 
-    # get mesh data from output dataset
-    X = xds_var['lon'].values[:]
-    Y = xds_var['lat'].values[:]
-
-    # maximum and minimum values 
-    vmax = float(xds_var.max().values)
-    vmin = float(xds_var.min().values)
-
-    # vortex timeframe
-    xds_var_times = xds_var.sel(time=time_n)
-    var_times = xds_var_times.values[:]
-
+    # plot vortex
     ccmap = custom_cmap(100, 'plasma_r', 0.05, 0.9, 'viridis', 0.2, 1)
     pm = axplot_var_map(
-        axs, X, Y, var_times,  # TODO output.T, aqui no
+        axs, X, Y, xds_v_wnd,
         vmin = vmin, vmax = vmax,
         cmap = ccmap,
     )
     cbar = fig.colorbar(pm, ax=axs)
     cbar.ax.set_ylabel(
-        '{0} ({1})'.format(var_name, var_units),
+        '{0} ({1})'.format('Wind', wind_units),
         rotation=90, va="bottom", fontweight='bold',
         labelpad=15,
     )
-    
+
     # plot quiver
     if quiver:
-        axplot_quiver(axs, X, Y, var_times, xds_vortex.Dir.sel(time=time_n).values[:])
+        axplot_quiver(axs, X, Y, xds_v_wnd.values[:], xds_v_dir.values[:])  # TODO .values[:])
 
     # plot shoreline
     shore = swan_proj.shore
@@ -357,7 +355,7 @@ def plot_case_vortex_input(swan_wrap, storm_track_list=[], t_num=10, case_number
     axplot_labels(axs, swan_proj.params['coords_mode'])
 
     # title
-    date_0 = time_n
+    date_0 = xds_v.time.values
     fmt = '%d-%b-%Y %H:%M%p'
     t_str = pd.to_datetime(str(date_0)).strftime(fmt)
     ttl_t = '\n{0}'.format(t_str)
@@ -474,17 +472,11 @@ def plot_case_output(
         mesh=mesh,
     ).squeeze(drop=True)
 
+    # select time to plot
+    xds_v = xds_out.isel(time=t_num)
 
-    # figure
-    fig, (axs) = plt.subplots(
-        nrows=1, ncols=1,
-        figsize=(_fsize*_faspect, _fsize),
-    )
-
-    time_n = xds_out.time.values[t_num]
-
-    # plot output
-    xds_var = xds_out[var_name]
+    # variable to plot
+    xds_var = xds_v[var_name]
     var_units = xds_var.units
 
     # get mesh data from output dataset
@@ -496,17 +488,21 @@ def plot_case_output(
     X = xds_var[xa].values[:]
     Y = xds_var[ya].values[:]
 
+
+    # figure
+    fig, (axs) = plt.subplots(
+        nrows=1, ncols=1,
+        figsize=(_fsize*_faspect, _fsize),
+    )
+
     # maximum and minimum values 
     vmax = float(xds_var.max().values)
     vmin = float(xds_var.min().values)
 
-    # output timeframe
-    xds_var_times = xds_var.sel(time=time_n)
-    var_times = xds_var_times.values[:]
-
+    # plot output variable
     ccmap = custom_cmap(15, 'YlOrRd', 0.15, 0.9, 'YlGnBu_r', 0, 0.85)
     pm = axplot_var_map(
-        axs, X, Y, var_times,
+        axs, X, Y, xds_var.values[:],
         vmin = vmin, vmax = vmax,
         cmap = ccmap,
     )
@@ -519,8 +515,7 @@ def plot_case_output(
 
     # plot quiver
     if quiver:
-        var_dir = xds_out.Dir.sel(time=time_n).values[:]
-        axplot_quiver(axs, X, Y, var_times, var_dir)
+        axplot_quiver(axs, X, Y, xds_var.values[:], xds_v.Dir.values[:])
 
     # plot shoreline
     shore = swan_proj.shore
@@ -536,7 +531,7 @@ def plot_case_output(
     axplot_labels(axs, swan_proj.params['coords_mode'])
 
     # title
-    date_0 = time_n
+    date_0 = xds_var.time.values
     fmt = '%d-%b-%Y %H:%M%p'
     t_str = pd.to_datetime(str(date_0)).strftime(fmt)
     ttl_t = '\n{0}'.format(t_str)
