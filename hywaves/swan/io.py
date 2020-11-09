@@ -54,7 +54,7 @@ def swn_set(proj):
 
 def swn_computational(proj, mesh):
     'COMPUTATIONAL GRID .swn block'
-    # only regular grid and full circle spectral directions !!!
+    # only regular grid and full circle spectral directions !!!
 
     cgrid_mdc = proj.params['cgrid_mdc']
     cgrid_flow = proj.params['cgrid_flow']
@@ -765,7 +765,7 @@ class SwanIO_NONSTAT(SwanIO):
 
         # -- OUTPUT: BLOCK  -- 
         dt_out = self.proj.params['output_deltt']
-        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR OUT {1} {2}\n$\n".format(
+        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN DIR PDIR TM02 RTP FSPR DSPR DEPTH WATLEV WIND  OUT {1} {2}\n$\n".format(
             mesh.fn_output, t0_iso, dt_out)
 
         # -- OUTPUT: POINTS  -- 
@@ -776,7 +776,7 @@ class SwanIO_NONSTAT(SwanIO):
             pass
         else:
             t += "POINTS 'outpts' FILE 'points_out.dat'\n"
-            t += "TABLE 'outpts' NOHEAD '{0}' DEP HS HSWELL DIR RTP TM02 DSPR WIND WATLEV  OUT {1} {2}\n$\n".format(
+            t += "TABLE 'outpts' NOHEAD '{0}' HSIGN DIR PDIR TM02 RTP FSPR DSPR DEPTH WATLEV WIND  OUT {1} {2}\n$\n".format(
                 mesh.fn_output_points, t0_iso, dt_out)
 
         # -- COMPUTE --
@@ -890,11 +890,11 @@ class SwanIO_NONSTAT(SwanIO):
         for ds in dates_str:
             xds_t = xr.Dataset(
                {
-                   'Hsig':   (('X','Y',), dmat['Hsig_{0}'.format(ds)].T,   {'units':'m'}),
-                   'Tm02':   (('X','Y',), dmat['Tm02_{0}'.format(ds)].T,   {'units':'s'}),
-                   'Dir':    (('X','Y',), dmat['Dir_{0}'.format(ds)].T,    {'units':'º'}),
-                   'Dspr':   (('X','Y',), dmat['Dspr_{0}'.format(ds)].T,   {'units':'º'}),
-                   'TPsmoo': (('X','Y',), dmat['TPsmoo_{0}'.format(ds)].T, {'units':'s'}),
+                   'Hsig':   (('Y','X',), dmat['Hsig_{0}'.format(ds)],   {'units':'m'}),
+                   'Tm02':   (('Y','X',), dmat['Tm02_{0}'.format(ds)],   {'units':'s'}),
+                   'Dir':    (('Y','X',), dmat['Dir_{0}'.format(ds)],    {'units':'º'}),
+                   'Dspr':   (('Y','X',), dmat['Dspr_{0}'.format(ds)],   {'units':'º'}),
+                   'TPsmoo': (('Y','X',), dmat['TPsmoo_{0}'.format(ds)], {'units':'s'}),
                }
             )
             l_times.append(xds_t)

@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 from math import sqrt
 import numpy as np
@@ -51,29 +49,40 @@ def calc_quiver(X, Y, var, vdir, size=30):
         then plot with: plt.quiver(x_q, y_q, -u*var_q, -v*var_q)
     '''
 
+    step = (X[-1]-X[0]) / size
+
+    size_x = round((X[-1]-X[0]) / step)
+    size_y = round((Y[-1]-Y[0]) / step)
 
     # var and dir interpolators 
     vdir_f = vdir.copy()
     vdir_f[np.isnan(vdir_f)] = 0
-    f_dir = interpolate.interp2d(X, Y, vdir_f, kind='linear')
+    vdir_f_y = np.cos(np.deg2rad(vdir_f))
+    vdir_f_x = np.sin(np.deg2rad(vdir_f))
+    f_dir_x = interpolate.interp2d(X, Y, vdir_f_x, kind='linear')
+    f_dir_y = interpolate.interp2d(X, Y, vdir_f_y, kind='linear')
 
     var_f = var.copy()
     var_f[np.isnan(var_f)] = 0
     f_var = interpolate.interp2d(X, Y, var_f, kind='linear')
 
     # generate quiver mesh
-    x_q = np.linspace(X[0], X[-1], num = size)
-    y_q = np.linspace(Y[0], Y[-1], num = size)
+    x_q = np.linspace(X[0], X[-1], num = size_x)
+    y_q = np.linspace(Y[0], Y[-1], num = size_y)
 
     # interpolate data to quiver mesh
-    vdir_q = f_dir(x_q, y_q)
     var_q = f_var(x_q, y_q)
+    vdir_q_x = f_dir_x(x_q, y_q)
+    vdir_q_y = f_dir_y(x_q, y_q)
+    vdir_q = np.rad2deg(np.arctan(vdir_q_x/vdir_q_y))
+    # sign correction
+    vdir_q[(vdir_q_x>0) & (vdir_q_y<0)] = vdir_q[(vdir_q_x>0) & (vdir_q_y<0)] + 180
+    vdir_q[(vdir_q_x<0) & (vdir_q_y<0)] = vdir_q[(vdir_q_x<0) & (vdir_q_y<0)] + 180
 
     # u and v dir components
     u = np.sin(np.deg2rad(vdir_q))
     v = np.cos(np.deg2rad(vdir_q))
 
-    # plot quiver
     return x_q, y_q, var_q, u, v
 
 

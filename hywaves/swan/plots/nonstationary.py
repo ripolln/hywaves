@@ -59,7 +59,7 @@ def get_storm_color(categ):
     return dcs[categ]
 
 
-# axes generation
+# axes generation
 
 def axplot_shore(ax, np_shore):
     'adds a shore (numpy) to axes'
@@ -80,13 +80,18 @@ def axplot_labels(ax, coords_mode):
 
 def axplot_quiver(ax, XX, YY, vv, vd):
     'Plot 2D quiver map'
+    
+    size = 40
+    scale = size / (XX[-1]-XX[0]) * np.nanmax(vv)
+    if scale <0:    scale *= -1
 
-    x_q, y_q, var_q, u, v = calc_quiver(XX, YY, vv, vd, size=12)
+    x_q, y_q, var_q, u, v = calc_quiver(XX, YY, vv, vd, size=size)
+    
     ax.quiver(
         x_q, y_q, -u*var_q, -v*var_q,
-        width=0.003,
-        #scale = 0.5,
-        scale_units='inches',
+        width=0.0015,
+        scale = scale, #0.5,
+        scale_units='x',
     )
 
 def axplot_var_map(ax, XX, YY, vv,
@@ -95,7 +100,7 @@ def axplot_var_map(ax, XX, YY, vv,
                   ):
     'plot 2D map with variable data'
 
-    # cplot v lims
+    # cplot v lims
     if vmin == None: vmin = np.nanmin(vv)
     if vmax == None: vmax = np.nanmax(vv)
 
@@ -168,7 +173,7 @@ def plot_project_site(swan_proj):
         figsize=(_fsize*_faspect, _fsize),
     )
 
-    # plot bathymetry
+    # plot bathymetry
     mesh = swan_proj.mesh_main
     XX, YY, depth = mesh2np(mesh)
 
@@ -253,7 +258,7 @@ def plot_case_input(swan_proj, storm_track_list=[], case_number=0):
 
         # add text to title
         ttl_st = '\nPmin: {0:.2f} hPa / Vmean: {1:.2f} km/h / Gamma: {2:.2f}º'.format(
-            np.min(st.p0), np.mean(st.vf)*1.872, st.move[0])
+            np.min(st.p0), np.mean(st.vf)*1.852, st.move[0])
 
     # title
     axs.set_title(
@@ -269,6 +274,95 @@ def plot_case_input(swan_proj, storm_track_list=[], case_number=0):
     plt.legend(loc='upper right', prop={'size':10})
 
     axs.set_facecolor('lightcyan')
+
+    # equal axis
+    axs.set_aspect('equal', 'box')
+
+    return fig
+
+def plot_case_vortex_input(swan_wrap, storm_track_list=[], t_num=10, case_number=0,
+                            mesh=None, quiver=True):
+    '''
+    # TODO: documentar
+    '''
+    # TODO: refactor con el siguiente grafiti
+
+    # swan project
+    swan_proj = swan_wrap.proj
+
+    # default to main mesh
+    if mesh == None: mesh = swan_proj.mesh_main
+
+    # read vortex Wind module and direction
+    case_id = '{0:04d}'.format(case_number)
+    p_case = op.join(swan_proj.p_cases, case_id)
+    code = 'wind_{0}'.format(mesh.ID)
+    p_vortex = op.join(p_case, 'vortex_{0}.nc'.format(code))
+
+    xds_vortex = xr.open_dataset(p_vortex)
+
+    # select time to plot
+    xds_v = xds_vortex.isel(time=t_num)
+
+    # get mesh data from vortex dataset
+    X = xds_v['lon'].values[:]
+    Y = xds_v['lat'].values[:]
+
+    # vortex wind and dir
+    xds_v_wnd = xds_v['W']
+    xds_v_dir = xds_v['Dir']
+
+    # figure
+    fig, (axs) = plt.subplots(
+        nrows=1, ncols=1,
+        figsize=(_fsize*_faspect, _fsize),
+    )
+
+    # maximum and minimum wind values 
+    vmax = float(xds_v_wnd.max().values)
+    vmin = float(xds_v_wnd.min().values)
+    wind_units = xds_v_wnd.units
+
+    # plot vortex
+    ccmap = custom_cmap(100, 'plasma_r', 0.05, 0.9, 'viridis', 0.2, 1)
+    pm = axplot_var_map(
+        axs, X, Y, xds_v_wnd,
+        vmin = vmin, vmax = vmax,
+        cmap = ccmap,
+    )
+    cbar = fig.colorbar(pm, ax=axs)
+    cbar.ax.set_ylabel(
+        '{0} ({1})'.format('Wind', wind_units),
+        rotation=90, va="bottom", fontweight='bold',
+        labelpad=15,
+    )
+
+    # plot quiver
+    if quiver:
+        axplot_quiver(axs, X, Y, xds_v_wnd.values[:], xds_v_dir.values[:])  # TODO .values[:])
+
+    # plot shoreline
+    shore = swan_proj.shore
+    if shore.any():
+        axplot_shore(axs, np_shore=shore)
+
+    # plot storm track
+    if storm_track_list:
+        st = storm_track_list[case_number]  # select storm track for this case
+        axplot_storm_track(axs, st, cat_colors=False)
+
+    # mesh coordinates labels
+    axplot_labels(axs, swan_proj.params['coords_mode'])
+
+    # title
+    date_0 = xds_v.time.values
+    fmt = '%d-%b-%Y %H:%M%p'
+    t_str = pd.to_datetime(str(date_0)).strftime(fmt)
+    ttl_t = '\n{0}'.format(t_str)
+    axs.set_title(
+        'SWAN Project: {0}, Case: {1:04d} - Vortex Model {2}'.format(
+            swan_proj.name, case_number, ttl_t ),
+        fontsize=16, fontweight='bold')
 
     # equal axis
     axs.set_aspect('equal', 'box')
@@ -356,11 +450,11 @@ def plot_case_vortex_grafiti(swan_wrap, storm_track_list=[], case_number=0,
 
     return fig
 
-def plot_case_output_grafiti(
+def plot_case_output(
     swan_wrap, var_name='Hsig', case=0, mesh=None,
-    storm_track_list = []):
+    storm_track_list = [], t_num=10, quiver=True):
     '''
-    # TODO DOC
+    # TODO DOC
     Plots case output "grafiti": variable max
         - todo1
         - todo2
@@ -372,7 +466,102 @@ def plot_case_output_grafiti(
     # default to main mesh
     if mesh == None: mesh = swan_proj.mesh_main
 
-    # load output
+    # load output
+    xds_out = swan_wrap.extract_output(
+        case_ini=case, case_end=case+1,
+        mesh=mesh,
+    ).squeeze(drop=True)
+
+    # select time to plot
+    xds_v = xds_out.isel(time=t_num)
+
+    # variable to plot
+    xds_var = xds_v[var_name]
+    var_units = xds_var.units
+
+    # get mesh data from output dataset
+    coords_mode = swan_proj.params['coords_mode']
+    if coords_mode == 'SPHERICAL':
+        xa, ya = 'lon', 'lat'
+    else:
+        xa, ya = 'X', 'Y'
+    X = xds_var[xa].values[:]
+    Y = xds_var[ya].values[:]
+
+
+    # figure
+    fig, (axs) = plt.subplots(
+        nrows=1, ncols=1,
+        figsize=(_fsize*_faspect, _fsize),
+    )
+
+    # maximum and minimum values 
+    vmax = float(xds_var.max().values)
+    vmin = float(xds_var.min().values)
+
+    # plot output variable
+    ccmap = custom_cmap(15, 'YlOrRd', 0.15, 0.9, 'YlGnBu_r', 0, 0.85)
+    pm = axplot_var_map(
+        axs, X, Y, xds_var.values[:],
+        vmin = vmin, vmax = vmax,
+        cmap = ccmap,
+    )
+    cbar = fig.colorbar(pm, ax=axs)
+    cbar.ax.set_ylabel(
+        '{0} ({1})'.format(var_name, var_units),
+        rotation=90, va="bottom", fontweight='bold',
+        labelpad=15,
+    )
+
+    # plot quiver
+    if quiver:
+        axplot_quiver(axs, X, Y, xds_var.values[:], xds_v.Dir.values[:])
+
+    # plot shoreline
+    shore = swan_proj.shore
+    if shore.any():
+        axplot_shore(axs, np_shore=shore)
+
+    # plot storm track
+    if storm_track_list:
+        st = storm_track_list[case]  # select storm track for this case
+        axplot_storm_track(axs, st, cat_colors=False)
+
+    # mesh coordinates labels
+    axplot_labels(axs, swan_proj.params['coords_mode'])
+
+    # title
+    date_0 = xds_var.time.values
+    fmt = '%d-%b-%Y %H:%M%p'
+    t_str = pd.to_datetime(str(date_0)).strftime(fmt)
+    ttl_t = '\n{0}'.format(t_str)
+    axs.set_title(
+        'SWAN Project: {0}, Case: {1:04d} {2}'.format(
+            swan_proj.name, case, ttl_t),
+        fontsize=16, fontweight='bold')
+
+    # equal axis
+    axs.set_aspect('equal', 'box')
+
+    return fig
+
+def plot_case_output_grafiti(
+    swan_wrap, var_name='Hsig', case=0, mesh=None,
+    storm_track_list = []):
+    '''
+    # TODO DOC
+    Plots case output "grafiti": variable max
+        - todo1
+        - todo2
+    '''
+
+    # swan project
+    swan_proj = swan_wrap.proj
+
+    # default to main mesh
+    if mesh == None: mesh = swan_proj.mesh_main
+
+    # load output
     xds_out = swan_wrap.extract_output(
         case_ini=case, case_end=case+1,
         mesh=mesh,
@@ -408,7 +597,7 @@ def plot_case_output_grafiti(
 
     ccmap = custom_cmap(15, 'YlOrRd', 0.15, 0.9, 'YlGnBu_r', 0, 0.85)
     pm = axplot_var_map(
-        axs, X, Y, var_max.T,
+        axs, X, Y, var_max,
         vmin = vmin, vmax = vmax,
         cmap = ccmap,
     )
@@ -455,7 +644,7 @@ def plot_case_output_grafiti(
 def axplot_series(ax, xda_v, lc, mesh_ID):
     'axes plot variables series'
 
-    # values and time
+    # values and time
     vvs = xda_v.values[:]
     vts = xda_v.time.values[:]
 
@@ -509,7 +698,7 @@ def plot_case_output_points(swan_wrap, point=0, case=0):
 
     for c, vn in enumerate(vns):
 
-        # plot main mesh 
+        # plot main mesh 
         axplot_series(axs[c], mm_op[vn], 'black', mm_op.attrs['mesh_ID'])
 
         # plot nestes meshes
