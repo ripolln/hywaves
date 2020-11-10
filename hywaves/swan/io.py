@@ -211,12 +211,11 @@ def swn_inp_levels_nonstat(proj, mesh, t0_iso, t1_iso):
 
     return t
 
-def swn_inp_winds_nonstat(proj, mesh, t0_iso, t1_iso):
+def swn_inp_winds_nonstat(proj, mesh, t0_iso, t1_iso, wind_deltinp):
     'input level files (NONSTAT) .swn block'
 
-    wind_deltinp = proj.params['wind_deltinp']
     wind_fn = 'series_wind_{0}.dat'.format(mesh.ID)
-    wind_idla = 3 # TODO: comprobar archivos wind se generan acorde
+    wind_idla = 3
 
     t = ''
     t += 'INPGRID  WIND  REGULAR {0} {1} {2} {3} {4} {5} {6} NONSTAT {7} {8} {9}\n'.format(
@@ -710,7 +709,7 @@ class SwanIO_NONSTAT(SwanIO):
 
     def make_input(self, p_file, id_run,
                    mesh,
-                   time, compute_deltc,
+                   time, compute_deltc, wind_deltinp=None,
                    ttl_run='',
                    make_waves=True, make_winds=True, make_levels=True,
                    waves_bnd=['N', 'E', 'W', 'S']):
@@ -758,7 +757,8 @@ class SwanIO_NONSTAT(SwanIO):
 
         # wind series files
         if make_winds:
-            t += swn_inp_winds_nonstat(self.proj, mesh, t0_iso, t1_iso)
+            t += swn_inp_winds_nonstat(self.proj, mesh, t0_iso, t1_iso,
+                                       wind_deltinp)
 
         # -- BOUNDARY WAVES CONDITIONS --
 
@@ -830,8 +830,9 @@ class SwanIO_NONSTAT(SwanIO):
         swan_iso_fmt = '%Y%m%d.%H%M'
         time_swan = pd.to_datetime(waves_event.index).strftime(swan_iso_fmt).values[:]
 
-        # computational dt
+        # project computational and winds_input delta time
         compute_deltc = self.proj.params['compute_deltc']
+        wind_deltinp = proj.params['wind_deltinp']
 
         # SWAN case path
         p_case = op.join(self.proj.p_cases, case_id)
@@ -853,10 +854,11 @@ class SwanIO_NONSTAT(SwanIO):
             if isinstance(storm_track, pd.DataFrame):
                 self.make_vortex_files(p_case, case_id, self.proj.mesh_main, storm_track)
 
-                # optional: override computational dt with storm track attribute 
+                # optional: override computational/winds dt with storm track attribute 
                 if 'override_dtcomp' in storm_track.attrs:
                     compute_deltc = storm_track.attrs['override_dtcomp']
-                    print('CASE {0} - compute_deltc override with storm track: {1}'.format(
+                    wind_deltinp = storm_track.attrs['override_dtcomp']
+                    print('CASE {0} - compute_deltc, wind_deltinp override with storm track: {1}'.format(
                         case_id, compute_deltc))
             else:
                 self.make_wind_files(p_case, waves_event, self.proj.mesh_main)
@@ -871,7 +873,7 @@ class SwanIO_NONSTAT(SwanIO):
             p_swn, case_id,
             self.proj.mesh_main,
             time_swan,
-            compute_deltc,
+            compute_deltc, wind_deltinp,
             make_waves = make_waves,
             make_winds = make_winds,
             make_levels = make_levels,
@@ -900,7 +902,7 @@ class SwanIO_NONSTAT(SwanIO):
                 p_swn, case_id,
                 mesh_n,
                 time_swan,
-                compute_deltc,
+                compute_deltc, wind_deltinp,
                 make_waves = make_waves,
                 make_winds = make_winds,
                 make_levels = make_levels,
