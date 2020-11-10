@@ -856,7 +856,7 @@ class SwanIO_NONSTAT(SwanIO):
                 # optional: override computational dt with storm track attribute 
                 if 'override_dtcomp' in storm_track.attrs:
                     compute_deltc = storm_track.attrs['override_dtcomp']
-                    print('CASE {0} - compute_deltc override with storm track: {1} min'.format(
+                    print('CASE {0} - compute_deltc override with storm track: {1}'.format(
                         case_id, compute_deltc))
             else:
                 self.make_wind_files(p_case, waves_event, self.proj.mesh_main)
