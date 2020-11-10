@@ -298,6 +298,7 @@ def historic_track_interpolation(st_time, ylon_tc, ylat_tc, ycpres, ywind, y0, x
         st['vmax'] = p1 * np.power(p0[loc],3) + p2 * np.power(p0[loc],2) + p3 * np.power(p0[loc],1) + p4   # [kt]
 
     # add some metadata
+    # TODO: move to st.attrs (this metada gets lost with any operation with st)
     st.x0 = x0
     st.y0 = y0
     st.R = 4
