@@ -14,6 +14,23 @@ from scipy import interpolate
 
 from .geo import geo_distance_azimuth
 
+# output variables metadatai 'CODE':('name', 'units', 'matname')
+# TODO: completar
+meta_out = {
+    'HSIGN':('Hsig', 'm', 'Hsig'),
+    'DIR':('Dir', 'º', 'Dir'),
+    'PDIR':('PkDir', 'º', 'PkDir'),
+    'TM02':('Tm02', 's', 'Tm02'),
+    'TPS':('Tp', 's', 'TPsmoo'),
+    'RTP':('RTpeak', '?', 'RTpeak'),
+    'FSPR':('FSpr', '?', 'FSpr'),
+    'DSPR':('Dspr', 'º', 'Dspr'),
+    'DEPTH':('Depth', 'm', 'Depth'),
+    'WATLEV':('WaterLevel', 'm', 'Watlev'),
+    'WIND':('Wind', 'm/s', 'Windv'), # Windv_u, Windv_v
+    'OUT':('OUT', '-', 'OUT'),
+}
+
 
 # input.swn TEMPLATES - COMMON
 
@@ -117,10 +134,9 @@ def swn_bound_waves_nested(proj, boundn_file):
 
     return t
 
-def swn_nestout(proj, t0_iso=None):
+def swn_nestout(proj, t0_iso=None, compute_deltc=None):
     'output for nested boundary waves .swn block'
 
-    dt_out = proj.params['output_deltt']
     mesh_main = proj.mesh_main
 
     t = ''
@@ -136,7 +152,7 @@ def swn_nestout(proj, t0_iso=None):
         # prepare nonstat times str
         nonstat_str = ''
         if t0_iso != None:
-            nonstat_str = 'OUT {0} {1}'.format(t0_iso, dt_out)
+            nonstat_str = 'OUT {0} {1}'.format(t0_iso, compute_deltc)
 
         t += "NESTOUT '{0}' '{1}' {2} \n$\n".format(mesh_n.ID, mesh_n.fn_boundn, nonstat_str)
 
@@ -694,7 +710,8 @@ class SwanIO_NONSTAT(SwanIO):
 
     def make_input(self, p_file, id_run,
                    mesh,
-                   time, ttl_run='',
+                   time, compute_deltc,
+                   ttl_run='',
                    make_waves=True, make_winds=True, make_levels=True,
                    waves_bnd=['N', 'E', 'W', 'S']):
         '''
@@ -702,6 +719,7 @@ class SwanIO_NONSTAT(SwanIO):
 
         p_file     - input.swn file path
         time       - event time at swan iso format
+        compute_deltc - computational delta time (swan project parameter)
 
         ttl_run    - execution title that will appear in the output
 
@@ -761,12 +779,15 @@ class SwanIO_NONSTAT(SwanIO):
 
         # -- OUTPUT: NESTED MESHES  -- 
         if not mesh.is_nested:
-            t += swn_nestout(self.proj, t0_iso=t0_iso)
+            t += swn_nestout(self.proj, t0_iso=t0_iso, compute_deltc=compute_deltc)
+
+        # output variables
+        out_vars = ' '.join(self.proj.params['output_variables'])
 
         # -- OUTPUT: BLOCK  -- 
         dt_out = self.proj.params['output_deltt']
-        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN DIR PDIR TM02 RTP FSPR DSPR DEPTH WATLEV WIND  OUT {1} {2}\n$\n".format(
-            mesh.fn_output, t0_iso, dt_out)
+        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 {1} {2} {3}\n$\n".format(
+            mesh.fn_output, out_vars, t0_iso, dt_out)
 
         # -- OUTPUT: POINTS  -- 
         x_out = self.proj.params['output_points_x']
@@ -776,11 +797,10 @@ class SwanIO_NONSTAT(SwanIO):
             pass
         else:
             t += "POINTS 'outpts' FILE 'points_out.dat'\n"
-            t += "TABLE 'outpts' NOHEAD '{0}' HSIGN DIR PDIR TM02 RTP FSPR DSPR DEPTH WATLEV WIND  OUT {1} {2}\n$\n".format(
-                mesh.fn_output_points, t0_iso, dt_out)
+            t += "TABLE 'outpts' NOHEAD '{0}' {1} {2} {3}\n$\n".format(
+                mesh.fn_output_points, out_vars, t0_iso, dt_out)
 
         # -- COMPUTE --
-        compute_deltc = self.proj.params['compute_deltc']
         t += 'TEST  1,0\n'
         t += 'COMPUTE NONSTAT {0} {1} {2}\n'.format(t0_iso, compute_deltc, t1_iso)
         t += 'STOP\n$\n'
@@ -810,6 +830,9 @@ class SwanIO_NONSTAT(SwanIO):
         swan_iso_fmt = '%Y%m%d.%H%M'
         time_swan = pd.to_datetime(waves_event.index).strftime(swan_iso_fmt).values[:]
 
+        # computational dt
+        compute_deltc = self.proj.params['compute_deltc']
+
         # SWAN case path
         p_case = op.join(self.proj.p_cases, case_id)
         if not op.isdir(p_case): os.makedirs(p_case)
@@ -829,6 +852,12 @@ class SwanIO_NONSTAT(SwanIO):
             # vortex model from storm tracks  //  meshgrind wind
             if isinstance(storm_track, pd.DataFrame):
                 self.make_vortex_files(p_case, case_id, self.proj.mesh_main, storm_track)
+
+                # optional: override computational dt with storm track attribute 
+                if 'override_dtcomp' in storm_track.attrs:
+                    compute_deltc = storm_track.attrs['override_dtcomp']
+                    print('CASE {0} - compute_deltc override with storm track: {1} min'.format(
+                        case_id, compute_deltc))
             else:
                 self.make_wind_files(p_case, waves_event, self.proj.mesh_main)
 
@@ -842,6 +871,7 @@ class SwanIO_NONSTAT(SwanIO):
             p_swn, case_id,
             self.proj.mesh_main,
             time_swan,
+            compute_deltc,
             make_waves = make_waves,
             make_winds = make_winds,
             make_levels = make_levels,
@@ -870,6 +900,7 @@ class SwanIO_NONSTAT(SwanIO):
                 p_swn, case_id,
                 mesh_n,
                 time_swan,
+                compute_deltc,
                 make_waves = make_waves,
                 make_winds = make_winds,
                 make_levels = make_levels,
@@ -885,18 +916,23 @@ class SwanIO_NONSTAT(SwanIO):
         dates_str = ['_'.join(x.split('_')[1:]) for x in hsfs]
         dates = [datetime.strptime(s,'%Y%m%d_%H%M%S') for s in dates_str]
 
+        # variables to extract
+        # TODO detectarlas del .mat automaticamente?
+        names = self.proj.params['output_variables']
+        not_proc = ['WIND', 'OUT']  # filter variables
+
         # read times
         l_times = []
         for ds in dates_str:
-            xds_t = xr.Dataset(
-               {
-                   'Hsig':   (('Y','X',), dmat['Hsig_{0}'.format(ds)],   {'units':'m'}),
-                   'Tm02':   (('Y','X',), dmat['Tm02_{0}'.format(ds)],   {'units':'s'}),
-                   'Dir':    (('Y','X',), dmat['Dir_{0}'.format(ds)],    {'units':'º'}),
-                   'Dspr':   (('Y','X',), dmat['Dspr_{0}'.format(ds)],   {'units':'º'}),
-                   'TPsmoo': (('Y','X',), dmat['TPsmoo_{0}'.format(ds)], {'units':'s'}),
-               }
-            )
+
+            xds_t = xr.Dataset()
+            for vn in names:
+                if vn in meta_out.keys() and vn not in not_proc:
+                    vn_ni = meta_out[vn][0]
+                    vn_un = meta_out[vn][1]
+                    mat_code = meta_out[vn][2]
+                    xds_t[vn_ni] = (('Y','X',), dmat['{0}_{1}'.format(mat_code, ds)], {'units':vn_un})
+
             l_times.append(xds_t)
 
         # join at times dim
@@ -928,8 +964,7 @@ class SwanIO_NONSTAT(SwanIO):
         p_dat = op.join(p_case, mesh.fn_output_points)
 
         # variable names
-        names = ['DEP', 'HS', 'HSWELL', 'DIR', 'RTP', 'TM02', 'DSPR', 'WIND',
-                 'WATLEV', 'OUT' ]
+        names = self.proj.params['output_variables']
 
         x_out = self.proj.params['output_points_x']
         y_out = self.proj.params['output_points_y']
@@ -948,6 +983,11 @@ class SwanIO_NONSTAT(SwanIO):
             np_pti = np_pts[ix_p, :]
             xds_pti = xr.Dataset({}) #, coords='time')
             for c, n in enumerate(names):
+
+                # search metadata for good description and override n
+                if n in meta_out.keys():
+                    n='{0} ({1})'.format(meta_out[n][0], meta_out[n][1])
+
                 xds_pti[n] = (('time'), np_pti[:,c])
 
             l_xds_pts.append(xds_pti)
