@@ -67,6 +67,8 @@ d_params_template = {
     'output_deltt': None,      # output delta time '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
     'output_points_x': [],     # output points x coordinate list 
     'output_points_y': [],     # output points y coordinate list 
+    'output_variables': ['HSIGN', 'DIR', 'PDIR', 'TM02', 'TPS', 'RTP', 'FSPR', 'DSPR',
+                         'DEPTH', 'WATLEV', 'WIND', 'OUT'],    # output varibles to store 
 
     # COMPUTE
     'compute_deltc': None,     # computation delta time '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
