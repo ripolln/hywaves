@@ -832,7 +832,7 @@ class SwanIO_NONSTAT(SwanIO):
 
         # project computational and winds_input delta time
         compute_deltc = self.proj.params['compute_deltc']
-        wind_deltinp = proj.params['wind_deltinp']
+        wind_deltinp = self.proj.params['wind_deltinp']
 
         # SWAN case path
         p_case = op.join(self.proj.p_cases, case_id)
