@@ -10,7 +10,7 @@ from .geo import shoot, gc_distance
 
 # STORM TRACK LIBRARY
 
-# TODO descatalogar? 
+# TODO descatalogar? 
 def track_from_parameters(
     pmin, vmean, delta, gamma,
     x0, y0, x1, R,
@@ -140,8 +140,28 @@ def historic_track_preprocessing(xds, d_vns):
 
     # storm category centers
     categ = get_category(ycpres)
+    
+    # calculate Vmean
+    RE = 6378.135   # earth radius [km]
+    vmean = []
+    
+    for i in range(0, len(st_time)-1):
 
-    return st_time, ylat_tc, ylon_tc, ycpres, ywind, ts, categ
+        # track pair of successive coordinates
+        lon1 = ylon_tc[i]
+        lat1 = ylat_tc[i]
+        lon2 = ylon_tc[i+1]
+        lat2 = ylat_tc[i+1]
+
+        # translation speed 
+        arcl_h, gamma_h = gc_distance(lat2, lon2, lat1, lon1)
+        r = arcl_h * np.pi / 180.0 * RE     # distance between consecutive track points (km)
+        vmean.append(r / ts[i] / 1.852)     # translation speed (km/h to kt) 
+        
+    # mean value
+    vmean = np.mean(vmean)  # [kt]
+
+    return st_time, ylat_tc, ylon_tc, ycpres, ywind, ts, categ, vmean
 
 def ibtrac_basin_fitting(x0, y0):
     '''
