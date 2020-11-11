@@ -9,6 +9,7 @@ import pandas as pd
 import xarray as xr
 
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 
 from .common import GetBestRowsCols, calc_quiver, custom_cmap
 
@@ -280,6 +281,72 @@ def plot_case_input(swan_proj, storm_track_list=[], case_number=0):
 
     return fig
 
+def plot_matrix_input(swan_proj, storm_track_list=[], 
+                      case_ini=0, case_end=9, mesh=None, show=True):
+    '''
+    # TODO: documentar
+    '''
+    # TODO: refactor con el siguiente grafiti
+
+    # default to main mesh
+    if mesh == None: mesh = swan_proj.mesh_main
+    XX, YY, _ = mesh2np(mesh)
+    
+    # get number of rows and cols for gridplot 
+    n_clusters = np.arange(case_ini, case_end).size
+    n_rows, n_cols = GetBestRowsCols(n_clusters)
+
+    # figure
+    fig = plt.figure(figsize=(23*1.5, 20*1.5))
+
+    gs = gridspec.GridSpec(n_rows, n_cols, wspace=0, hspace=0)
+    gr, gc = 0, 0
+
+    for case_i in range(n_clusters):
+
+        # plot variable times
+        ax = plt.subplot(gs[gr, gc])
+
+        # plot shoreline
+        shore = swan_proj.shore
+        if shore.any():
+            axplot_shore(ax, np_shore=shore)
+    
+        # plot storm track
+        if storm_track_list:
+            st = storm_track_list[case_i]  # select storm track for this case
+            axplot_storm_track(ax, st)
+            # add text to title
+            ttl_st = '\nPmin: {0:.2f} hPa / Vmean: {1:.2f} km/h / Gamma: {2:.2f}º'.format(
+                np.min(st.p0), np.mean(st.vf)*1.852, st.move[0])
+    
+        # number
+        ax.text(XX[5], YY[5], case_i, color='fuchsia', fontweight='bold', fontsize=20)
+        ax.text(XX[200], YY[5], '{0}'.format(ttl_st), color='k', fontsize=18)
+
+        # fix axes
+        ax.set_xlim(XX[0], XX[-1])
+        ax.set_ylim(YY[0], YY[-1])
+    
+        # legend
+        plt.legend(loc='upper right', prop={'size':10})
+    
+        ax.set_facecolor('lightcyan')
+    
+        # equal axis
+        ax.set_aspect('equal', 'box')
+#        ax.axis('off')
+
+        # counter
+        gc += 1
+        if gc >= n_cols:
+            gc = 0
+            gr += 1
+
+    # show and return figure
+    if show: plt.show()
+
+
 def plot_case_vortex_input(swan_wrap, storm_track_list=[], t_num=10, case_number=0,
                             mesh=None, quiver=True):
     '''
@@ -323,7 +390,7 @@ def plot_case_vortex_input(swan_wrap, storm_track_list=[], t_num=10, case_number
     vmin = float(xds_v_wnd.min().values)
     wind_units = xds_v_wnd.units
 
-    # plot vortex
+    # plot vortex
     ccmap = custom_cmap(100, 'plasma_r', 0.05, 0.9, 'viridis', 0.2, 1)
     pm = axplot_var_map(
         axs, X, Y, xds_v_wnd,
@@ -450,6 +517,146 @@ def plot_case_vortex_grafiti(swan_wrap, storm_track_list=[], case_number=0,
 
     return fig
 
+def axplot_grafiti(ax, swan_proj, xds_case, case_number, var_name, 
+                   storm_track_list=[], vmin=None, vmax=None):
+    '''
+    # TODO: documentar
+    '''
+    # TODO: refactor con el siguiente grafiti
+
+    # plot grafiti
+    xds_var = xds_case[var_name]
+
+    # get mesh data from output dataset
+    X = xds_var['lon'].values[:]
+    Y = xds_var['lat'].values[:]
+
+    # grafiti
+    xds_var_max = xds_var.max(dim='time')
+    var_max = xds_var_max.values[:]
+
+    # colormap
+    if var_name=='W': 	 ccmap = custom_cmap(100, 'plasma_r', 0.05, 0.9, 'viridis', 0.2, 1)
+    if var_name=='Hsig': ccmap = custom_cmap(100, 'YlOrRd', 0.09, 0.9, 'YlGnBu_r', 0, 0.88)
+    
+    pc = axplot_var_map(
+        ax, X, Y, var_max,  # TODO output.T, aqui no
+        vmin = vmin, vmax = vmax,
+        cmap = ccmap,
+    )
+
+    # plot shoreline
+    shore = swan_proj.shore
+    if shore.any():
+        axplot_shore(ax, np_shore=shore)
+
+    # plot storm track
+    if storm_track_list:
+        st = storm_track_list[case_number]  # select storm track for this case
+        axplot_storm_track(ax, st, cat_colors=False)
+
+    # number
+    ax.text(X[5], Y[5], case_number, color='fuchsia', fontweight='bold', fontsize=20)
+
+    plt.axis('scaled')
+    plt.xlim(X[0], X[-1])
+    plt.ylim(Y[0], Y[-1])
+    plt.axis('off')
+
+    # equal axis
+#    ax.set_aspect('equal', 'box')
+
+    return pc
+
+def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[], 
+                        case_ini=0, case_end=9, mesh=None):
+    '''
+    # TODO: documentar
+    var_name: 'W' (vortex), 'Hsig' (output)
+    '''
+    # TODO: refactor con el siguiente grafiti
+
+    # swan project
+    swan_proj = swan_wrap.proj
+
+    # default to main mesh
+    if mesh == None: mesh = swan_proj.mesh_main
+
+    
+    if var_name == 'W':
+        # read vortex Wind module and direction
+        code = 'wind_{0}'.format(mesh.ID)
+        xds_vortex_list = []
+        
+        for i in np.arange(case_ini, case_end):
+            case_id = '{0:04d}'.format(i)
+            p_case = op.join(swan_proj.p_cases, case_id)
+            p_vortex = op.join(p_case, 'vortex_{0}.nc'.format(code))
+            xds_vortex = xr.open_dataset(p_vortex)
+            xds_vortex_list.append(xds_vortex)
+
+        # concatenate xarray datasets (new dim: case)
+        xds_ls = xr.concat(xds_vortex_list, dim='case')
+        xds_out = xds_ls.assign(case=np.arange(case_ini, case_end))
+
+    if var_name == 'Hsig':
+        # load output
+        xds_out = swan_wrap.extract_output(
+            case_ini=case_ini, case_end=case_end,
+            mesh=mesh,
+        ).squeeze(drop=True)
+
+
+    # extract min,max colobar limits
+    var_max_all, var_min_all, n_clusters = [], [], []
+    for i in np.arange(case_ini, case_end):
+        var_max_all.append(xds_out.sel(case=i)[var_name].max(axis=0).max())
+        var_min_all.append(xds_out.sel(case=i)[var_name].min(axis=0).min())
+        n_clusters.append(1)
+    var_max = np.nanmax(var_max_all)
+    var_min = np.nanmin(var_min_all)
+
+    # get number of rows and cols for gridplot 
+    n_clusters = np.sum(n_clusters)
+    n_rows, n_cols = GetBestRowsCols(n_clusters)
+
+    # figure
+    fig = plt.figure(figsize=(23*1.5, 20*1.5))
+
+    gs = gridspec.GridSpec(n_rows, n_cols, wspace=0, hspace=0)
+    gr, gc = 0, 0
+
+    for case_n, (case_ix) in enumerate(xds_out.case.values[:]):
+        # select case
+        xds_out_case = xds_out.sel(case=case_ix)
+        var_units = xds_out_case[var_name].attrs['units']
+
+        # plot variable times
+        ax = plt.subplot(gs[gr, gc])
+        pc = axplot_grafiti(ax, swan_proj, xds_out_case, case_ix, var_name, 
+                            storm_track_list=storm_track_list, 
+                            vmin=var_min, vmax=var_max)
+            
+        # get lower positions
+        if gr==n_rows-1 and gc==0:
+            pax_l = ax.get_position()
+        elif gr==n_rows-1 and gc==n_cols-1:
+            pax_r = ax.get_position()
+
+        # counter
+        gc += 1
+        if gc >= n_cols:
+            gc = 0
+            gr += 1
+
+    cbar_ax = fig.add_axes([pax_l.x0, pax_l.y0-0.05, pax_r.x1 - pax_l.x0, 0.02])
+    cb = fig.colorbar(pc, cax=cbar_ax, orientation='horizontal')
+    cb.set_label(label='{0} ({1})'.format(var_name, var_units), size=20, weight='bold')
+    cb.ax.tick_params(labelsize=15)
+
+    return fig
+
+
 def plot_case_output(
     swan_wrap, var_name='Hsig', case=0, mesh=None,
     storm_track_list = [], t_num=10, quiver=True):
@@ -499,7 +706,7 @@ def plot_case_output(
     vmax = float(xds_var.max().values)
     vmin = float(xds_var.min().values)
 
-    # plot output variable
+    # plot output variable
     ccmap = custom_cmap(15, 'YlOrRd', 0.15, 0.9, 'YlGnBu_r', 0, 0.85)
     pm = axplot_var_map(
         axs, X, Y, xds_var.values[:],
@@ -657,24 +864,21 @@ def axplot_series(ax, xda_v, lc, mesh_ID):
 
     ax.set_xlim(vts[0], vts[-1])
 
-def plot_case_output_points(swan_wrap, point=0, case=0):
+def plot_case_output_points(swan_wrap, point=0, case_ini=0, case_end=1):
     '''
     # TODO doc
     '''
 
     # extract output from main mesh
     mm = swan_wrap.proj.mesh_main
-    mm_op = swan_wrap.extract_output_points(mesh=mm)
+    mm_op0 = swan_wrap.extract_output_points(case_ini=case_ini, case_end=case_end, mesh=mm)
 
     # extract output from nested meshes
-    l_mn_op = [swan_wrap.extract_output_points(mesh=m) \
+    l_mn_op0 = [swan_wrap.extract_output_points(case_ini=case_ini, case_end=case_end, mesh=m) \
                for m in swan_wrap.proj.mesh_nested_list]
 
-    # select case and point
-    mm_op = mm_op.sel(case=case, point=point)
-    l_mn_op = [x.sel(case=case, point=point) for x in l_mn_op]
-
     # vars to plot
+    mm_op = mm_op0.sel(case=0, point=point)
     block = ['x_point', 'y_point', 'time', 'DEP', 'OUT']
     vns = [v for v in mm_op.variables if v not in block]
     n_axis = len(vns)
@@ -682,34 +886,45 @@ def plot_case_output_points(swan_wrap, point=0, case=0):
     # figure
     fig, (axs) = plt.subplots(
         nrows=n_axis, ncols=1,
-        figsize=(_fsize*_faspect, (_fsize/3)*n_axis),
+        figsize=(_fsize*_faspect, (_fsize/6)*n_axis),
         sharex = True,
     )
 
-    # TODO completar y mover/incorporar a la extraccion del output 
-    vn_lab = dict(zip(vns, vns))
-    vn_lab.update(
-        {
-            'HS': 'Significant Wave Height (m)',
-            'TM02': 'Mean Period (s)',
-        }
-    )
-    nm_cs = ['r'] * len(l_mn_op)  # TODO each nested mesh output line plot color
+    for case_i in np.arange(case_ini, case_end):
 
-    for c, vn in enumerate(vns):
+        # select case and point
+        mm_op = mm_op0.sel(case=case_i, point=point)
+        l_mn_op = [x.sel(case=case_i, point=point) for x in l_mn_op0]
 
-        # plot main mesh 
-        axplot_series(axs[c], mm_op[vn], 'black', mm_op.attrs['mesh_ID'])
+        # vars to plot
+        block = ['x_point', 'y_point', 'time', 'DEP', 'OUT', 'case']
+        vns = [v for v in mm_op.variables if v not in block]
+        n_axis = len(vns)
 
-        # plot nestes meshes
-        for nm, nmc in zip(l_mn_op, nm_cs):
-            axplot_series(axs[c], nm[vn], nmc, nm.attrs['mesh_ID'])
-
-        # customize axes and labels
-        axs[c].set_ylabel(vn_lab[vn], rotation=90, fontweight='bold', labelpad=35)
-
-        if c==0:
-            axs[c].legend()
-
+        # TODO completar y mover/incorporar a la extraccion del output 
+        vn_lab = dict(zip(vns, vns))
+        vn_lab.update(
+            {
+                'HS': 'Significant Wave Height (m)',
+                'TM02': 'Mean Period (s)',
+            }
+        )
+        nm_cs = ['r'] * len(l_mn_op)  # TODO each nested mesh output line plot color
+    
+        for c, vn in enumerate(vns):
+    
+            # plot main mesh 
+            axplot_series(axs[c], mm_op[vn], 'black', mm_op.attrs['mesh_ID'])
+            
+            # plot nestes meshes
+            for nm, nmc in zip(l_mn_op, nm_cs):
+                axplot_series(axs[c], nm[vn], nmc, nm.attrs['mesh_ID'])
+    
+            # customize axes and labels
+            axs[c].set_ylabel(vn_lab[vn], rotation=90, fontweight='bold', labelpad=35)
+    
+            if c==0:
+                axs[c].legend()
+   
     return fig
 

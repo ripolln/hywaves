@@ -22,13 +22,10 @@ meta_out = {
     'PDIR':('PkDir', 'º', 'PkDir'),
     'TM02':('Tm02', 's', 'Tm02'),
     'TPS':('Tp', 's', 'TPsmoo'),
-    'RTP':('RTpeak', '?', 'RTpeak'),
-    'FSPR':('FSpr', '?', 'FSpr'),
     'DSPR':('Dspr', 'º', 'Dspr'),
-    'DEPTH':('Depth', 'm', 'Depth'),
     'WATLEV':('WaterLevel', 'm', 'Watlev'),
-    'WIND':('Wind', 'm/s', 'Windv'), # Windv_u, Windv_v
-    'OUT':('OUT', '-', 'OUT'),
+    'WIND':('Wind_x', 'm/s', 'Wind_x'), # Windv_u, Windv_v
+    'OUT':('Wind_y', 'm/s', 'Wind_y'),
 }
 
 
@@ -781,7 +778,7 @@ class SwanIO_NONSTAT(SwanIO):
         if not mesh.is_nested:
             t += swn_nestout(self.proj, t0_iso=t0_iso, compute_deltc=compute_deltc)
 
-        # output variables
+        # output variables
         out_vars = ' '.join(self.proj.params['output_variables'])
 
         # -- OUTPUT: BLOCK  -- 
@@ -919,9 +916,9 @@ class SwanIO_NONSTAT(SwanIO):
         dates = [datetime.strptime(s,'%Y%m%d_%H%M%S') for s in dates_str]
 
         # variables to extract
-        # TODO detectarlas del .mat automaticamente?
+        # TODO detectarlas del .mat automaticamente?
         names = self.proj.params['output_variables']
-        not_proc = ['WIND', 'OUT']  # filter variables
+        not_proc = ['WIND', 'OUT']  # filter variables
 
         # read times
         l_times = []
