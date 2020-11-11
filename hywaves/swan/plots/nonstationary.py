@@ -879,7 +879,7 @@ def plot_case_output_points(swan_wrap, point=0, case_ini=0, case_end=1):
 
     # vars to plot
     mm_op = mm_op0.sel(case=0, point=point)
-    block = ['x_point', 'y_point', 'time', 'DEP', 'OUT']
+    block = ['x_point', 'y_point', 'time', 'DEPTH', 'OUT','case']
     vns = [v for v in mm_op.variables if v not in block]
     n_axis = len(vns)
 
@@ -897,34 +897,29 @@ def plot_case_output_points(swan_wrap, point=0, case_ini=0, case_end=1):
         l_mn_op = [x.sel(case=case_i, point=point) for x in l_mn_op0]
 
         # vars to plot
-        block = ['x_point', 'y_point', 'time', 'DEP', 'OUT', 'case']
+        block = ['x_point', 'y_point', 'time', 'DEPTH', 'OUT', 'case']
         vns = [v for v in mm_op.variables if v not in block]
         n_axis = len(vns)
 
-        # TODO completar y mover/incorporar a la extraccion del output 
+        # TODO completar con meta_data de io.py 
         vn_lab = dict(zip(vns, vns))
-        vn_lab.update(
-            {
-                'HS': 'Significant Wave Height (m)',
-                'TM02': 'Mean Period (s)',
-            }
-        )
+
         nm_cs = ['r'] * len(l_mn_op)  # TODO each nested mesh output line plot color
-    
+
         for c, vn in enumerate(vns):
-    
+
             # plot main mesh 
             axplot_series(axs[c], mm_op[vn], 'black', mm_op.attrs['mesh_ID'])
-            
+
             # plot nestes meshes
             for nm, nmc in zip(l_mn_op, nm_cs):
                 axplot_series(axs[c], nm[vn], nmc, nm.attrs['mesh_ID'])
-    
+
             # customize axes and labels
             axs[c].set_ylabel(vn_lab[vn], rotation=90, fontweight='bold', labelpad=35)
-    
+
             if c==0:
                 axs[c].legend()
-   
+
     return fig
 

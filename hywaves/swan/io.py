@@ -24,8 +24,9 @@ meta_out = {
     'TPS':('Tp', 's', 'TPsmoo'),
     'DSPR':('Dspr', 'º', 'Dspr'),
     'WATLEV':('WaterLevel', 'm', 'Watlev'),
-    'WIND':('Wind_x', 'm/s', 'Wind_x'), # Windv_u, Windv_v
-    'OUT':('Wind_y', 'm/s', 'Wind_y'),
+    'WIND_X':('Windv_x', 'm/s', 'Windv_x'),
+    'WIND_Y':('Windv_y', 'm/s', 'Windv_y'),
+    'OUT':('OUT', '-', 'OUT'),
 }
 
 
@@ -905,7 +906,22 @@ class SwanIO_NONSTAT(SwanIO):
                 make_levels = make_levels,
             )
 
+    def output_variable_names(self):
+        'return output variable name codes'
+
+        names = self.proj.params['output_variables']
+
+        # wind u,v fix
+        if 'WIND' in names:
+            ix_i = names.index('WIND'); names.remove('WIND')
+            names.insert(ix_i, 'WIND_X')
+            names.insert(ix_i+1, 'WIND_Y')
+
+        return names
+
     def outmat2xr(self, p_mat):
+        'read output .mat file and returns xarray.Dataset'
+        # TODO: leyendo variables output indicadas en el proyecto. Cambiar a reconocer automaticamente?
 
         # matlab dictionary
         dmat = loadmat(p_mat)
@@ -916,9 +932,10 @@ class SwanIO_NONSTAT(SwanIO):
         dates = [datetime.strptime(s,'%Y%m%d_%H%M%S') for s in dates_str]
 
         # variables to extract
-        # TODO detectarlas del .mat automaticamente?
-        names = self.proj.params['output_variables']
-        not_proc = ['WIND', 'OUT']  # filter variables
+        names = self.output_variable_names()
+
+        # variables to filter
+        not_proc = ['OUT']
 
         # read times
         l_times = []
@@ -962,8 +979,11 @@ class SwanIO_NONSTAT(SwanIO):
         # extract output from selected mesh
         p_dat = op.join(p_case, mesh.fn_output_points)
 
-        # variable names
-        names = self.proj.params['output_variables']
+        # variables to extract
+        names = self.output_variable_names()
+
+        # TODO: revisar
+        if 'OUT' in names: names.remove('OUT')
 
         x_out = self.proj.params['output_points_x']
         y_out = self.proj.params['output_points_y']
