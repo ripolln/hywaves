@@ -14,20 +14,24 @@ from scipy import interpolate
 
 from .geo import geo_distance_azimuth
 
-# output variables metadatai 'CODE':('name', 'units', 'matname')
-# TODO: completar
-meta_out = {
-    'HSIGN':('Hsig', 'm', 'Hsig'),
-    'DIR':('Dir', 'º', 'Dir'),
-    'PDIR':('PkDir', 'º', 'PkDir'),
-    'TM02':('Tm02', 's', 'Tm02'),
-    'TPS':('Tp', 's', 'TPsmoo'),
-    'DSPR':('Dspr', 'º', 'Dspr'),
-    'WATLEV':('WaterLevel', 'm', 'Watlev'),
-    'WIND_X':('Windv_x', 'm/s', 'Windv_x'),
-    'WIND_Y':('Windv_y', 'm/s', 'Windv_y'),
-    'OUT':('OUT', '-', 'OUT'),
+# output variables metadata 'CODE':('out_name', 'units', 'description')
+meta_out_swn = {
+    'HSIGN':  ('Hsig', 'm', 'Significant Wave Height'),
+    'DIR':    ('Dir', 'º', 'Waves Direction'),
+    'PDIR':   ('PkDir', 'º', 'PkDir'),
+    'TM02':   ('Tm02', 's', 'Waves Mean Period'),
+    'TPS':    ('Tp', 's', 'Waves Peak Period'),
+    'DSPR':   ('Dspr', 'º', 'Waves Directional Spread'),
+    'WATLEV': ('WaterLevel', 'm', 'Water Level'),
+    'WIND_X': ('Windv_x', 'm/s', 'Wind Speed (x)'),
+    'WIND_Y': ('Windv_y', 'm/s', 'Wind Speed (y)'),
+    'OUT':    ('OUT', '-', 'OUT'),
 }
+
+# same but for .mat output keys 
+cmat = ['Hsig', 'Dir', 'PkDir', 'Tm02', 'TPsmoo', 'Dspr', 'Watlev', 'Windv_x', 'Windv_y']
+cmet = ['HSIGN', 'DIR', 'PDIR', 'TM02', 'TPS', 'DSPR', 'WATLEV', 'WIND_X', 'WIND_Y']
+meta_out_mat = {k:meta_out_swn[v] for k,v in zip(cmat,cmet)}
 
 
 # input.swn TEMPLATES - COMMON
@@ -381,6 +385,7 @@ class SwanIO_STAT(SwanIO):
             )
 
     def outmat2xr(self, p_mat):
+        # TODO: actualizar
 
         # matlab dictionary
         dmat = loadmat(p_mat)
@@ -906,81 +911,99 @@ class SwanIO_NONSTAT(SwanIO):
                 make_levels = make_levels,
             )
 
-    def output_variable_names(self):
-        'return output variable name codes'
+    def add_metadata(self, xds, meta):
+        'Adds metadata (if available) to output xarray.Datasets'
 
-        names = self.proj.params['output_variables']
+        for vn in xds.variables:
+            if vn in meta.keys():
+                name, units, descr = meta[vn]
+            else:
+                name, units, descr = vn, '-', '-'
 
-        # wind u,v fix
-        if 'WIND' in names:
-            ix_i = names.index('WIND'); names.remove('WIND')
-            names.insert(ix_i, 'WIND_X')
-            names.insert(ix_i+1, 'WIND_Y')
+            xds[vn].attrs.update({'units':units, 'description':descr})
+            xds = xds.rename_vars({vn:name})
 
-        return names
+        return xds
 
     def outmat2xr(self, p_mat):
         'read output .mat file and returns xarray.Dataset'
-        # TODO: leyendo variables output indicadas en el proyecto. Cambiar a reconocer automaticamente?
 
         # matlab dictionary
         dmat = loadmat(p_mat)
 
+        # find output variable keys inside .mat file
+        ks = list(set([x.split('_')[0] for x in dmat.keys()]))
+        ks = [x for x in ks if x]  # remove empty values
+        if 'Windv' in ks: ks.remove('Windv'); ks.append('Windv_x'); ks.append('Windv_y')
+
         # get dates from one key
-        hsfs = sorted([x for x in dmat.keys() if 'Hsig' in x])
+        hsfs = sorted([x for x in dmat.keys() if ks[0] in x])
         dates_str = ['_'.join(x.split('_')[1:]) for x in hsfs]
         dates = [datetime.strptime(s,'%Y%m%d_%H%M%S') for s in dates_str]
 
-        # variables to extract
-        names = self.output_variable_names()
-
-        # variables to filter
-        not_proc = ['OUT']
-
-        # read times
+        # iterate times and variables 
         l_times = []
-        for ds in dates_str:
-
+        for ix_t, ds in enumerate(dates_str):
             xds_t = xr.Dataset()
-            for vn in names:
-                if vn in meta_out.keys() and vn not in not_proc:
-                    vn_ni = meta_out[vn][0]
-                    vn_un = meta_out[vn][1]
-                    mat_code = meta_out[vn][2]
-                    xds_t[vn_ni] = (('Y','X',), dmat['{0}_{1}'.format(mat_code, ds)], {'units':vn_un})
-
+            for vn in ks:
+                xds_t[vn] = (('Y','X',), dmat['{0}_{1}'.format(vn, ds)])
             l_times.append(xds_t)
 
         # join at times dim
         xds_out = xr.concat(l_times, dim='time')
         xds_out = xds_out.assign_coords(time=dates)
 
+        # add variable metadata (if available)
+        xds_out = self.add_metadata(xds_out, meta_out_mat)
+
         return xds_out
 
-    def get_t0_dt(self, p_input):
-        'gets output points time_ini and delta_time (min) from SWAN input.swn file'
+    def get_swn_info(self, p_input):
+        'get raw information from input.swn file'
 
-        # read input.swn and file data
+        # read entire input.swn
         with open(p_input, 'r') as fR:
             ls = fR.readlines()
 
+        # locate TABLE line and extract some data
         lx = [x for x in ls if x.startswith('TABLE')][0].split(' ')
+
+        # read start date and delta time
         t0_str = lx[-3]  # start date
-        dt_min = lx[-2]  # dt (minutes)
-
         swan_iso_fmt = '%Y%m%d.%H%M'
-        t0 = datetime.strptime(t0_str, swan_iso_fmt)
+        t0_dt = datetime.strptime(t0_str, swan_iso_fmt)
+        dt_min = lx[-2]  # dt (minutes)  # TODO: make compatible user def. UNITS
 
-        return t0, dt_min
+        # read TABLE output variables codes
+        vs_out = lx[4:-3]
+
+        # fix WIND (2 column for x,y)
+        if 'WIND' in vs_out:
+            ix_i = vs_out.index('WIND'); vs_out.remove('WIND')
+            vs_out.insert(ix_i, 'WIND_X')
+            vs_out.insert(ix_i+1, 'WIND_Y')
+
+        # return everything in one dict
+        swn_info = {
+            'TABLE_dtmin': dt_min,
+            'TABLE_t0dt': t0_dt,
+            'TABLE_vars': vs_out,
+        }
+
+        return swn_info
 
     def output_points(self, p_case, mesh):
         'read table_outpts_meshID.dat output file and returns xarray.Dataset'
+
+        # read some information from .swn file
+        p_swn = op.join(p_case, mesh.fn_input)
+        swn_info = self.get_swn_info(p_swn)
 
         # extract output from selected mesh
         p_dat = op.join(p_case, mesh.fn_output_points)
 
         # variables to extract
-        names = self.output_variable_names()
+        names = swn_info['TABLE_vars']
 
         # TODO: revisar
         if 'OUT' in names: names.remove('OUT')
@@ -1000,18 +1023,15 @@ class SwanIO_NONSTAT(SwanIO):
             ix_p = np.arange(i, n_rows, n_pts)
 
             np_pti = np_pts[ix_p, :]
-            xds_pti = xr.Dataset({}) #, coords='time')
+            xds_pti = xr.Dataset({})
             for c, n in enumerate(names):
-
-                # search metadata for good description and override n
-                if n in meta_out.keys():
-                    n='{0} ({1})'.format(meta_out[n][0], meta_out[n][1])
-
                 xds_pti[n] = (('time'), np_pti[:,c])
-
             l_xds_pts.append(xds_pti)
 
         xds_out = xr.concat(l_xds_pts, dim='point')
+
+        # add variable metadata (if available)
+        xds_out = self.add_metadata(xds_out, meta_out_swn)
 
         # add point x and y
         xds_out['x_point'] = (('point'), x_out)
@@ -1021,8 +1041,7 @@ class SwanIO_NONSTAT(SwanIO):
         xds_out.attrs['mesh_ID'] = mesh.ID
 
         # add times dim values
-        p_swn = op.join(p_case, self.proj.mesh_main.fn_input)
-        t0, dt_min = self.get_t0_dt(p_swn)
+        t0, dt_min = swn_info['TABLE_t0dt'], swn_info['TABLE_dtmin']
         time_out = pd.date_range(t0, periods=len(xds_out.time), freq='{0}min'.format(dt_min))
         xds_out = xds_out.assign_coords(time=time_out)
 
