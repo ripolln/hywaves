@@ -11,7 +11,7 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-from .common import GetBestRowsCols, calc_quiver, custom_cmap
+from .common import GetBestRowsCols, calc_quiver, custom_cmap, bathy_cmap
 
 # import constants
 from .config import _faspect, _fsize, _fdpi
@@ -75,8 +75,8 @@ def add_wind_module_dir(xds):
 
     # module and dir
     ww = np.sqrt(np.power(wx, 2) + np.power(wy, 2))
-    wd = np.degrees(np.arctan2(wy, wx))
-    wd[wd<0] = wd[wd<0]+360  # TODO: direccion viento correcta?
+    wd = np.degrees(np.arctan2(wx, wy))
+    wd[wd<0] = wd[wd<0]+180  # TODO: direccion viento correcta?
 
     xds['Wind_v'] = xds['Windv_x'].copy()
     xds['Wind_v'][:] = ww
@@ -218,7 +218,7 @@ def axplot_series(ax, xda_v, lc, mesh_ID, linestyle='-'):
 #    - Vortex Input winds
 #    - Vortex Grafiti winds
 
-def plot_project_site(swan_proj):
+def plot_project_site(swan_proj, vmin=None, vmax=None, np_shore=[], zoom=False):
     '''
     Plots SwanProject site
         - bathymetry
@@ -238,19 +238,14 @@ def plot_project_site(swan_proj):
     XX, YY, depth = mesh2np(mesh)
 
     pm = axplot_var_map(
-        axs, XX, YY, depth,
-        cmap = 'gist_earth_r',
+        axs, XX, YY, -depth, vmin=vmin, vmax=vmax,
+        cmap = bathy_cmap(np.abs(vmin), np.abs(vmax)),
     )
     cbar = fig.colorbar(pm, ax=axs)
     cbar.ax.set_ylabel('depth (m)', rotation=90, va="bottom", fontweight='bold')
 
     # mesh coordinates labels
     axplot_labels(axs, swan_proj.params['coords_mode'])
-
-    # plot shoreline
-    shore = swan_proj.shore
-    if shore.any():
-        axplot_shore(axs, np_shore=shore)
 
     # plot output points (control points)
     x_out = swan_proj.params['output_points_x']
@@ -263,6 +258,13 @@ def plot_project_site(swan_proj):
 
     # plot nested meshes
     axplot_nested_meshes(axs, swan_proj.mesh_nested_list)
+    
+    # plot zoom limits (nest0)
+    if zoom:
+        mesh0 = swan_proj.mesh_nested_list[0]
+        XX_m, YY_m, _ = mesh2np(mesh0)
+        axs.set_xlim([XX_m[0], XX_m[-1]])
+        axs.set_ylim([YY_m[0], YY_m[-1]])
 
     # title
     axs.set_title('SWAN Project Site: {0}'.format(swan_proj.name),
@@ -524,7 +526,7 @@ def plot_case_vortex_grafiti(swan_wrap, storm_track_list=[], case_number=0,
 
 # TODO revisar
 def plot_matrix_input(swan_proj, storm_track_list=[], 
-                      case_ini=0, case_end=9, mesh=None, show=True):
+                      case_ini=0, case_end=9, mesh=None, params=False, show=True):
     '''
     # TODO: documentar
     '''
@@ -559,12 +561,15 @@ def plot_matrix_input(swan_proj, storm_track_list=[],
             st = storm_track_list[case_i]  # select storm track for this case
             axplot_storm_track(ax, st)
             # add text to title
-            ttl_st = '\nPmin: {0:.2f} hPa / Vmean: {1:.2f} km/h / Gamma: {2:.2f}º'.format(
-                np.min(st.p0), np.mean(st.vf)*1.852, st.move[0])
+            ttl_st = '\nPmin: {0:.1f} hPa / Vmean: {1:.1f} km/h'.format(
+                np.min(st.p0), np.mean(st.vf)*1.852)
     
         # number
         ax.text(XX[5], YY[5], case_i, color='fuchsia', fontweight='bold', fontsize=20)
-        ax.text(XX[200], YY[5], '{0}'.format(ttl_st), color='k', fontsize=18)
+        
+        # parameters
+        if params==True:
+            ax.text(XX[400], YY[5], '{0}'.format(ttl_st), color='k', fontsize=14)
 
         # fix axes
         ax.set_xlim(XX[0], XX[-1])
@@ -819,7 +824,7 @@ def plot_case_output_points(swan_wrap, point=0, case=0):
         l_xds_nest = [add_wind_module_dir(x) for x in l_xds_nest]
 
     # vars to plot
-    block = ['x_point', 'y_point', 'time', 'DEPTH', 'OUT', 'case']
+    block = ['x_point', 'y_point', 'time', 'DEPTH', 'OUT', 'case', 'Windv_x', 'Windv_y']
     vns = [v for v in xds_main.variables if v not in block]
     n_axis = len(vns)
 
@@ -918,7 +923,7 @@ def axplot_grafiti(ax, swan_proj, xds_case, case_number, var_name,
 
     return pc
 
-# TODO: revisar
+# TODO: revisar
 def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[], 
                         case_ini=0, case_end=9, mesh=None):
     '''
