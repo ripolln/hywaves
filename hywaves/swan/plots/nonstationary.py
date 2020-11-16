@@ -67,7 +67,7 @@ def get_storm_color(categ):
     return dcs[categ]
 
 def add_wind_module_dir(xds):
-    'Calculate Wind_v(m/s) and Wind_dir(º) from windv_x,y'
+    'Calculate Wind_mod(m/s) and Wind_dir(º) from windv_x,y'
     # TODO: llevar a extraer output points
 
     wx = xds['Windv_x']
@@ -78,9 +78,9 @@ def add_wind_module_dir(xds):
     wd = np.degrees(np.arctan2(wx, wy))
     wd[wd<0] = wd[wd<0]+180  # TODO: direccion viento correcta?
 
-    xds['Wind_v'] = xds['Windv_x'].copy()
-    xds['Wind_v'][:] = ww
-    xds['Wind_v'].attrs={'units':'m/s', 'description': 'Wind Speed'}
+    xds['Wind_mod'] = xds['Windv_x'].copy()
+    xds['Wind_mod'][:] = ww
+    xds['Wind_mod'].attrs={'units':'m/s', 'description': 'Wind Speed'}
 
     xds['Wind_dir'] = xds['Windv_x'].copy()
     xds['Wind_dir'][:] = wd
@@ -206,6 +206,22 @@ def axplot_series(ax, xda_v, lc, mesh_ID, linestyle='-'):
     ax.plot(
         vts, vvs,
         linestyle=linestyle, linewidth=2, color=lc,
+        label = mesh_ID,
+    )
+
+    ax.set_xlim(vts[0], vts[-1])
+
+def axplot_scatter(ax, xda_v, lc, mesh_ID, marker='.'):
+    'axes plot variables series'
+
+    # values and time
+    vvs = xda_v.values[:]
+    vts = xda_v.time.values[:]
+
+    # plot series
+    ax.scatter(
+        vts, vvs,
+        marker=marker, color=lc,
         label = mesh_ID,
     )
 
@@ -824,7 +840,7 @@ def plot_case_output_points(swan_wrap, point=0, case=0):
         l_xds_nest = [add_wind_module_dir(x) for x in l_xds_nest]
 
     # vars to plot
-    block = ['x_point', 'y_point', 'time', 'DEPTH', 'OUT', 'case', 'Windv_x', 'Windv_y']
+    block = ['x_point', 'y_point', 'time', 'DEPTH', 'OUT', 'case', 'Windv_x', 'Windv_y', 'WaterLevel']
     vns = [v for v in xds_main.variables if v not in block]
     n_axis = len(vns)
 
@@ -842,19 +858,31 @@ def plot_case_output_points(swan_wrap, point=0, case=0):
 
             # get variable units
             vu = xds_main[vn].attrs['units']
-            lns = 'dotted' if vu == 'º' else '-'
-
-            # plot main mesh 
-            axplot_series(
-                axs[c], xds_main[vn], 'black',
-                xds_main.attrs['mesh_ID'], linestyle=lns,
-            )
-
-            # plot nestes meshes
-            for nm, nmc in zip(l_xds_nest, nm_cs):
-                axplot_series(
-                    axs[c], nm[vn], nmc, nm.attrs['mesh_ID'], linestyle=lns,
+            
+            if vu=='º':
+                # plot main mesh
+                axplot_scatter(
+                    axs[c], xds_main[vn], 'black',
+                    xds_main.attrs['mesh_ID'], 
                 )
+
+                # plot nestes meshes
+                for nm, nmc in zip(l_xds_nest, nm_cs):
+                    axplot_scatter(
+                        axs[c], nm[vn], nmc, nm.attrs['mesh_ID'], 
+                    )
+            else:
+                # plot main mesh 
+                axplot_series(
+                    axs[c], xds_main[vn], 'black',
+                    xds_main.attrs['mesh_ID'], linestyle='-',
+                )
+    
+                # plot nestes meshes
+                for nm, nmc in zip(l_xds_nest, nm_cs):
+                    axplot_series(
+                        axs[c], nm[vn], nmc, nm.attrs['mesh_ID'], linestyle='-',
+                    )
 
             # customize axes and labels
             axs[c].set_ylabel('{0} ({1})'.format(vn, vu),
