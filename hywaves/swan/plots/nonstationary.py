@@ -553,31 +553,34 @@ def plot_matrix_input(swan_proj, storm_track_list=[],
         shore = swan_proj.shore
         if shore.any():
             axplot_shore(ax, np_shore=shore)
-    
+
         # plot storm track
         if storm_track_list:
             st = storm_track_list[case_i]  # select storm track for this case
             axplot_storm_track(ax, st)
+
             # add text to title
             ttl_st = '\nPmin: {0:.2f} hPa / Vmean: {1:.2f} km/h / Gamma: {2:.2f}º'.format(
                 np.min(st.p0), np.mean(st.vf)*1.852, st.move[0])
-    
+            ax.text(0.1, 0.02, '{0}'.format(ttl_st), color='k', fontsize=18,
+                    transform=ax.transAxes)
+
         # number
-        ax.text(XX[5], YY[5], case_i, color='fuchsia', fontweight='bold', fontsize=20)
-        ax.text(XX[200], YY[5], '{0}'.format(ttl_st), color='k', fontsize=18)
+        ax.text(0.02, 0.02, case_i, color='fuchsia', fontweight='bold', fontsize=20,
+                transform=ax.transAxes)
 
         # fix axes
         ax.set_xlim(XX[0], XX[-1])
         ax.set_ylim(YY[0], YY[-1])
-    
+
         # legend
         plt.legend(loc='upper right', prop={'size':10})
-    
+
         ax.set_facecolor('lightcyan')
-    
+
         # equal axis
         ax.set_aspect('equal', 'box')
-#        ax.axis('off')
+        #ax.axis('off')
 
         # counter
         gc += 1
@@ -865,9 +868,6 @@ def plot_case_output_points(swan_wrap, point=0, case=0):
     return fig
 
 
-
-
-# TODO: revisar 
 def axplot_grafiti(ax, swan_proj, xds_case, case_number, var_name,
                    storm_track_list=[], vmin=None, vmax=None):
     '''
@@ -906,7 +906,8 @@ def axplot_grafiti(ax, swan_proj, xds_case, case_number, var_name,
         axplot_storm_track(ax, st, cat_colors=False)
 
     # number
-    ax.text(X[5], Y[5], case_number, color='fuchsia', fontweight='bold', fontsize=20)
+    ax.text(0.02, 0.02, case_number, color='fuchsia', fontweight='bold', fontsize=20,
+            transform=ax.transAxes)
 
     plt.axis('scaled')
     plt.xlim(X[0], X[-1])
