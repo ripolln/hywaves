@@ -120,6 +120,7 @@ class SwanMesh(object):
         np.savetxt(p_export, self.depth, fmt='%.2f')
 
     def get_XY(self):
+        # TODO switch computational grid / depth grid (cg/dg)
         'returns mesh X, Y arrays from computational grid'
 
         # computational grid
@@ -394,13 +395,15 @@ class SwanWrap_NONSTAT(SwanWrap):
                 make_levels=make_levels,
             )
 
-    # TODO refactor la metodologia case_ini, case_end
-    def extract_output(self, case_ini=None, case_end=None, mesh=None):
+    def extract_output(self, case_ini=None, case_end=None, mesh=None,
+                       var_name=None):
         '''
         exctract output from non stationary cases
         (it is possible to choose which cases to extract)
 
-        return xarray.Dataset (uses new dim "case" to join output)
+        var_name option allow for one unique variable extraction
+
+        return list of xarray.Dataset (adds "case" value to each output)
         '''
 
         # select main or nested mesh
@@ -408,23 +411,29 @@ class SwanWrap_NONSTAT(SwanWrap):
 
         # get sorted execution folders
         run_dirs = self.get_run_folders()
+        cs_ix = range(0, len(run_dirs))
         if (case_ini != None) & (case_end != None):
-            run_dirs=run_dirs[case_ini:case_end]
+            run_dirs = run_dirs[case_ini:case_end]
+            cs_ix = range(case_ini, case_end)
+
 
         # exctract output case by case and concat in list
         l_out = []
-        for p_run in run_dirs:
+        for c, p_run in zip(cs_ix, run_dirs):
 
             # read output file
             xds_case_out = self.io.output_case(p_run, mesh)
+
+            # optional chose variable
+            if var_name != None:
+                xds_case_out = xds_case_out[[var_name]]
+
+            # store case id
+            xds_case_out['case'] = c
+
             l_out.append(xds_case_out)
 
-        # concatenate xarray datasets (new dim: case)
-        xds_out = xr.concat(l_out, dim='case')
-        if (case_ini != None) & (case_end != None):
-            xds_out = xds_out.assign(case=np.arange(case_ini, case_end))
-
-        return(xds_out)
+        return(l_out)
 
     def extract_output_points(self, case_ini=None, case_end=None, mesh=None):
         '''
