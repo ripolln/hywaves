@@ -533,7 +533,7 @@ def plot_matrix_input(swan_proj, storm_track_list=[],
     # default to main mesh
     if mesh == None: mesh = swan_proj.mesh_main
     XX, YY, _ = mesh2np(mesh)
-    
+
     # get number of rows and cols for gridplot 
     n_clusters = np.arange(case_ini, case_end).size
     n_rows, n_cols = GetBestRowsCols(n_clusters)
@@ -918,14 +918,12 @@ def axplot_grafiti(ax, swan_proj, xds_case, case_number, var_name,
 
     return pc
 
-# TODO: revisar
-def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[], 
-                        case_ini=0, case_end=9, mesh=None):
+def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[],
+                        case_ini=None, case_end=None, mesh=None):
     '''
     # TODO: documentar
     var_name: 'W' (vortex), 'Hsig' (output)
     '''
-    # TODO: refactor con el siguiente grafiti
 
     # swan project
     swan_proj = swan_wrap.proj
@@ -933,43 +931,39 @@ def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[],
     # default to main mesh
     if mesh == None: mesh = swan_proj.mesh_main
 
-    
     if var_name == 'W':
         # read vortex Wind module and direction
         code = 'wind_{0}'.format(mesh.ID)
-        xds_vortex_list = []
-        
+
+        l_xds_out = []
         for i in np.arange(case_ini, case_end):
             case_id = '{0:04d}'.format(i)
             p_case = op.join(swan_proj.p_cases, case_id)
             p_vortex = op.join(p_case, 'vortex_{0}.nc'.format(code))
-            xds_vortex = xr.open_dataset(p_vortex)
-            xds_vortex_list.append(xds_vortex)
 
-        # concatenate xarray datasets (new dim: case)
-        xds_ls = xr.concat(xds_vortex_list, dim='case')
-        xds_out = xds_ls.assign(case=np.arange(case_ini, case_end))
+            xds_vortex = xr.open_dataset(p_vortex)
+            xds_vortex['case'] = i
+
+            l_xds_out.append(xds_vortex)
 
     if var_name == 'Hsig':
-        # load output
-        xds_out = swan_wrap.extract_output(
-            case_ini=case_ini, case_end=case_end,
-            mesh=mesh,
-        ).squeeze(drop=True)
-
+        # load output list
+        l_xds_out = swan_wrap.extract_output(
+            mesh = mesh,
+            case_ini = case_ini, case_end = case_end,
+            var_name = var_name,
+        )
 
     # extract min,max colobar limits
     var_max_all, var_min_all, n_clusters = [], [], []
-    for i in np.arange(case_ini, case_end):
-        var_max_all.append(xds_out.sel(case=i)[var_name].max(axis=0).max())
-        var_min_all.append(xds_out.sel(case=i)[var_name].min(axis=0).min())
-        n_clusters.append(1)
+    for xds_out in l_xds_out:
+        var_max_all.append(xds_out[var_name].max(axis=0).max())
+        var_min_all.append(xds_out[var_name].min(axis=0).min())
     var_max = np.nanmax(var_max_all)
     var_min = np.nanmin(var_min_all)
 
     # get number of rows and cols for gridplot 
-    n_clusters = np.sum(n_clusters)
-    n_rows, n_cols = GetBestRowsCols(n_clusters)
+    n_rows, n_cols = GetBestRowsCols(len(l_xds_out))
 
     # figure
     fig = plt.figure(figsize=(23*1.5, 20*1.5))
@@ -977,17 +971,19 @@ def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[],
     gs = gridspec.GridSpec(n_rows, n_cols, wspace=0, hspace=0)
     gr, gc = 0, 0
 
-    for case_n, (case_ix) in enumerate(xds_out.case.values[:]):
+    for xds_out in l_xds_out:
+
         # select case
-        xds_out_case = xds_out.sel(case=case_ix)
-        var_units = xds_out_case[var_name].attrs['units']
+        var_units = xds_out[var_name].attrs['units']
 
         # plot variable times
         ax = plt.subplot(gs[gr, gc])
-        pc = axplot_grafiti(ax, swan_proj, xds_out_case, case_ix, var_name, 
-                            storm_track_list=storm_track_list, 
-                            vmin=var_min, vmax=var_max)
-            
+        pc = axplot_grafiti(
+            ax, swan_proj, xds_out, int(xds_out.case), var_name,
+            storm_track_list=storm_track_list,
+            vmin=var_min, vmax=var_max
+        )
+
         # get lower positions
         if gr==n_rows-1 and gc==0:
             pax_l = ax.get_position()
@@ -1006,11 +1002,5 @@ def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[],
     cb.ax.tick_params(labelsize=15)
 
     return fig
-
-
-
-
-
-
 
 
