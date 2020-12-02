@@ -544,7 +544,7 @@ def plot_matrix_input(swan_proj, storm_track_list=[],
     gs = gridspec.GridSpec(n_rows, n_cols, wspace=0, hspace=0)
     gr, gc = 0, 0
 
-    for case_i in range(n_clusters):
+    for case_i in range(case_ini, case_end):
 
         # plot variable times
         ax = plt.subplot(gs[gr, gc])
