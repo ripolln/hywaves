@@ -16,6 +16,7 @@ from . import geo
 from . import io
 from . import storms
 from . import wrap
+from . import plots
 
 
 
