@@ -47,7 +47,9 @@ setup(
     install_requires = install_requires(),
     packages         = ['hywaves', 'hywaves.statistical', 'hywaves.swan', 'hywaves.swash',
                         'hywaves.test'],
-    package_data     = {'hywaves' : ['resources/*']},
+    package_data     = {
+        'hywaves' : ['resources/*']
+    },
     scripts          = [],
 )
 
