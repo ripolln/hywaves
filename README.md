@@ -187,6 +187,7 @@ Copy SWASH binary file to module resources
 - [demo 03 - VORTEX HISTORICAL](./scripts/hyswan/demo_03_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation)
 
 - [notebook - SWAN Vortex Historical](./notebooks/hyswan/nb_02_Vortex_Historical.ipynb): non-stationary storm Vortex model simulation from historical storm track
+- [notebook - SWAN Vortex MDA multiple cases](./notebooks/hyswan/nb_03_demo_vortex_mda.ipynb): non-stationary storm Vortex model simulation multiple storm cases (from a MaxDiss classification example)
 
 <a name="exp_2"></a>
 ### HySWAN: MDA -> SWAN -> RBF metamodel 
