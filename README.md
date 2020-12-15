@@ -40,22 +40,22 @@ This toolbox includes a hybrid (metamodel) methodology to optimize this process:
 
 Numerical models
 
-[swan](./hyswan/swan/): SWAN numerical model toolbox 
-- [io](./hyswan/swan/io.py): SWAN numerical model input/output operations
-- [wrap](./hyswan/swan/wrap.py): SWAN numerical model python wrap 
-- [geo](./hyswan/swan/geo.py): azimuth distance function
-- [storms](./hyswan/swan/storms.py): storm parameters function 
-- [plots](./hyswan/swan/plots/): plotting module 
+[swan](./hywaves/swan/): SWAN numerical model toolbox 
+- [io](./hywaves/swan/io.py): SWAN numerical model input/output operations
+- [wrap](./hywaves/swan/wrap.py): SWAN numerical model python wrap 
+- [geo](./hywaves/swan/geo.py): azimuth distance function
+- [storms](./hywaves/swan/storms.py): storm parameters function 
+- [plots](./hywaves/swan/plots/): plotting module 
 
-[swash](./hyswan/swash/): SWASH numerical model toolbox 
-- [io](./hyswan/swan/io.py): SWASH numerical model input/output operations
-- [wrap](./hyswan/swan/wrap.py): SWASH numerical model python wrap 
-- [plots](./hyswan/swan/plots/): plotting module 
+[swash](./hywaves/swash/): SWASH numerical model toolbox 
+- [io](./hywaves/swan/io.py): SWASH numerical model input/output operations
+- [wrap](./hywaves/swan/wrap.py): SWASH numerical model python wrap 
+- [plots](./hywaves/swan/plots/): plotting module 
 
 Statistical modules 
 
-- [mda](./hyswan/statistical/mda.py): MaxDiss classification module 
-- [rbf](./hyswan/statistical/rbf.py): Radial Basis Function module
+- [mda](./hywaves/statistical/mda.py): MaxDiss classification module 
+- [rbf](./hywaves/statistical/rbf.py): Radial Basis Function module
 
 
 <a name="doc"></a>
@@ -201,7 +201,7 @@ Copy SWASH binary file to module resources
 <a name="exp_4"></a>
 ### SWASH numerical wrap 
 
-- [notebook - SWASH Case](./hyswash/Swash_case.ipynb): An easy-to-use Jupyter Notebook to model wave transformation over a shallow cross-shore profile
+- [notebook - SWASH Case](./notebooks/hyswash/Swash_case.ipynb): An easy-to-use Jupyter Notebook to model wave transformation over a shallow cross-shore profile
 
 <a name="exp_5"></a>
 ### HySWASH: MDA -> SWASH - RBF metamodel
