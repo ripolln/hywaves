@@ -70,6 +70,8 @@ d_params_template = {
     'output_variables': ['HSIGN', 'DIR', 'PDIR', 'TM02', 'TPS', 'RTP', 'FSPR', 'DSPR',
                          'DEPTH', 'WATLEV', 'WIND', 'OUT'],    # output varibles to store 
 
+    'output_points_spec': False,  # calculate output spectral data at points
+
     # COMPUTE
     'compute_deltc': None,     # computation delta time '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
 }
@@ -88,6 +90,7 @@ class SwanMesh(object):
         self.fn_depth = 'depth_{0}.dat'    # filename used in SWAN execution
         self.fn_output = 'output_{0}.mat'  # output .mat file for mesh comp. grid
         self.fn_output_points = 'table_outpts_{0}.dat'  # output points file
+        self.fn_output_spec = 'spec_outpts_{0}.dat'  # output spec points file
         self.fn_input = 'input_{0}.swn'    # input .swn file
 
         # for nested mesh
@@ -107,6 +110,7 @@ class SwanMesh(object):
         self.fn_depth = 'depth_{0}.dat'.format(ID)
         self.fn_output = 'output_{0}.mat'.format(ID)
         self.fn_output_points = 'table_outpts_{0}.dat'.format(ID)
+        self.fn_output_spec = 'spec_outpts_{0}.dat'.format(ID)
         self.fn_input = 'input_{0}.swn'.format(ID)
 
         self.fn_boundn = 'bounds_{0}.dat'.format(ID)
@@ -457,6 +461,37 @@ class SwanWrap_NONSTAT(SwanWrap):
 
             # read output file
             xds_case_out = self.io.output_points(p_run, mesh)
+            l_out.append(xds_case_out)
+
+        # concatenate xarray datasets (new dim: case)
+        xds_out = xr.concat(l_out, dim='case')
+        if (case_ini != None) & (case_end != None):
+            xds_out = xds_out.assign(case=np.arange(case_ini, case_end))
+
+        return(xds_out)
+
+    def extract_output_points_spec(self, case_ini=None, case_end=None, mesh=None):
+        '''
+        extract output spectra from points all cases table_outpts.dat
+        (it is possible to choose which cases to extract)
+
+        return xarray.Dataset (uses new dim "case" to join output)
+        '''
+
+        # select main or nested mesh
+        if mesh == None: mesh = self.proj.mesh_main
+
+        # get sorted execution folders
+        run_dirs = self.get_run_folders()
+        if (case_ini != None) & (case_end != None):
+            run_dirs = run_dirs[case_ini:case_end]
+
+        # exctract output case by case and concat in list
+        l_out = []
+        for p_run in run_dirs:
+
+            # read output file
+            xds_case_out = self.io.output_points_spec(p_run, mesh)
             l_out.append(xds_case_out)
 
         # concatenate xarray datasets (new dim: case)
