@@ -1,1 +1,1 @@
-swan_bin.exe file should be here
+swan_ser.exe file should be here
