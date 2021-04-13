@@ -8,6 +8,7 @@ from scipy import interpolate
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from matplotlib import cm
+import cmocean
 
 
 def GetDivisors(x):
@@ -123,3 +124,17 @@ def custom_cmap(numcolors, map1, m1ini, m1end, map2, m2ini, m2end):
     newcmp = colors.ListedColormap(newcolors, name='OrangeBlue')
 
     return newcmp
+
+def bathy_cmap(bottom_lim, top_lim):
+    
+    # colormaps
+    colors1 = cmocean.cm.turbid
+    colors2 = 'YlGnBu_r'
+    
+    top = cm.get_cmap(colors1, top_lim)
+    bottom = cm.get_cmap(colors2, bottom_lim)
+    
+    newcolors = np.vstack((bottom(np.linspace(0, 0.8, bottom_lim)),
+                       top(np.linspace(0.1, 1, top_lim))))
+    
+    return (colors.ListedColormap(newcolors))

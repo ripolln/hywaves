@@ -11,7 +11,7 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-from .common import GetBestRowsCols, calc_quiver, custom_cmap
+from .common import GetBestRowsCols, calc_quiver, custom_cmap, bathy_cmap
 
 # import constants
 from .config import _faspect, _fsize, _fdpi
@@ -218,7 +218,7 @@ def axplot_series(ax, xda_v, lc, mesh_ID, linestyle='-'):
 #    - Vortex Input winds
 #    - Vortex Grafiti winds
 
-def plot_project_site(swan_proj):
+def plot_project_site(swan_proj, vmin=None, vmax=None, zoom=False, shoreline=False):
     '''
     Plots SwanProject site
         - bathymetry
@@ -238,8 +238,8 @@ def plot_project_site(swan_proj):
     XX, YY, depth = mesh2np(mesh)
 
     pm = axplot_var_map(
-        axs, XX, YY, depth,
-        cmap = 'gist_earth_r',
+        axs, XX, YY, -depth, vmin=vmin, vmax=vmax,#depth,
+        cmap = bathy_cmap(np.abs(vmin), np.abs(vmax)),#'gist_earth_r',
     )
     cbar = fig.colorbar(pm, ax=axs)
     cbar.ax.set_ylabel('depth (m)', rotation=90, va="bottom", fontweight='bold')
@@ -249,7 +249,7 @@ def plot_project_site(swan_proj):
 
     # plot shoreline
     shore = swan_proj.shore
-    if shore.any():
+    if shore.any() and shoreline:
         axplot_shore(axs, np_shore=shore)
 
     # plot output points (control points)
@@ -263,6 +263,13 @@ def plot_project_site(swan_proj):
 
     # plot nested meshes
     axplot_nested_meshes(axs, swan_proj.mesh_nested_list)
+
+    # plot zoom limits (nest0)
+    if zoom:
+        mesh0 = swan_proj.mesh_nested_list[0]
+        XX_m, YY_m, _ = mesh2np(mesh0)
+        axs.set_xlim([XX_m[0], XX_m[-1]])
+        axs.set_ylim([YY_m[0], YY_m[-1]])
 
     # title
     axs.set_title('SWAN Project Site: {0}'.format(swan_proj.name),
@@ -619,7 +626,7 @@ def plot_case_output(
     xds_out = swan_wrap.extract_output(
         case_ini=case, case_end=case+1,
         mesh=mesh,
-    ).squeeze(drop=True)
+    )[0]#.squeeze(drop=True)     # one case returns error for squeeze
 
     # select time to plot
     xds_v = xds_out.isel(time=t_num)
@@ -719,7 +726,7 @@ def plot_case_output_grafiti(
     xds_out = swan_wrap.extract_output(
         case_ini=case, case_end=case+1,
         mesh=mesh,
-    ).squeeze(drop=True)
+    )[0]#.squeeze(drop=True)     # one case returns error for squeeze
 
     # figure
     fig, (axs) = plt.subplots(
@@ -920,7 +927,8 @@ def axplot_grafiti(ax, swan_proj, xds_case, case_number, var_name,
     return pc
 
 def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[],
-                        case_ini=None, case_end=None, mesh=None):
+                        case_ini=None, case_end=None, mesh=None, 
+                        width=23*1.5, height=20*1.5):
     '''
     # TODO: documentar
     var_name: 'W' (vortex), 'Hsig' (output)
@@ -965,9 +973,21 @@ def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[],
 
     # get number of rows and cols for gridplot 
     n_rows, n_cols = GetBestRowsCols(len(l_xds_out))
+    
+    ###########################################################################
+    if n_cols==1:    # when not an integer or divisor !!!
+        sqrt_n = np.sqrt(len(l_xds_out)).round()
+        n_rows = int(sqrt_n)
+        n_cols = int(sqrt_n)
+    if n_rows > n_cols: 
+        n_rows_0 = n_rows
+        n_rows = n_cols
+        n_cols = n_rows_0
+
+    ###########################################################################
 
     # figure
-    fig = plt.figure(figsize=(23*1.5, 20*1.5))
+    fig = plt.figure(figsize=(width, height))
 
     gs = gridspec.GridSpec(n_rows, n_cols, wspace=0, hspace=0)
     gr, gc = 0, 0
@@ -996,6 +1016,15 @@ def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[],
         if gc >= n_cols:
             gc = 0
             gr += 1
+
+    ###########################################################################
+#    if gc <= n_cols: 
+#        while gc < n_cols:
+#            print(gc)
+#            #ax = plt.subplot(gs[gr, gc])
+#           # ax.axis('off')
+#            gc += 1
+    ###########################################################################
 
     cbar_ax = fig.add_axes([pax_l.x0, pax_l.y0-0.05, pax_r.x1 - pax_l.x0, 0.02])
     cb = fig.colorbar(pc, cax=cbar_ax, orientation='horizontal')

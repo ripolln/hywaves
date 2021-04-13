@@ -193,7 +193,8 @@ def ibtrac_basin_fitting(x0, y0):
 
 def historic_track_interpolation(st_time, ylon_tc, ylat_tc, ycpres, ywind, y0, x0,
                                  lat00, lon00, lat01, lon01, ts, dt_comp,
-                                 wind=None, great_circle=False, fit=False):
+                                 wind=None, great_circle=False, fit=False, 
+                                 interpolation=True, mode='first'):
     '''
     Calculates storm track variables from storm track parameters and interpolates
     track points in between historical data (for "dt_comp" time step)
@@ -208,6 +209,9 @@ def historic_track_interpolation(st_time, ylon_tc, ylat_tc, ycpres, ywind, y0, x
     wind                       - False for using vmax approximation eq.
     great_circle               - True for using great circle lon,lat calculation
     fit                        - True for fitting vmax when ywind=0 (start of storm)
+    imterpolation              - True for track and pmin/vmax interpolation (historic storms)
+                                 False for only track interpolation (segments pmin/vmax constant)
+    mode ('first','mean')      - Choose NON interpolation values of p0 and vmax
     '''
 
     RE = 6378.135   # earth radius [km]
@@ -229,7 +233,7 @@ def historic_track_interpolation(st_time, ylon_tc, ylat_tc, ycpres, ywind, y0, x
 
     # number of time steps between consecutive interpolated track points in order
     # to  match SWAN computational time step
-    ts = np.asarray(ts) * 60 / dt_comp
+    ts = np.asarray(ts) * 60 / dt_comp     # (hours)
 
     # initialize
     move, vmean, pn, p0, lon_t, lat_t, vmax = [], [], [], [], [], [], []
@@ -252,7 +256,7 @@ def historic_track_interpolation(st_time, ylon_tc, ylat_tc, ycpres, ywind, y0, x
         # translation speed 
         arcl_h, gamma_h = gc_distance(lat2, lon2, lat1, lon1)
         r = arcl_h * np.pi / 180.0 * RE     # distance between consecutive track points (km)
-        dx = r / ts[i]                      # interpolation distance 
+        dx = r / ts[i]                      # interpolation distance / hours step
         vx = float(dx) /3.6                 # translation speed (m/s)
         vx = vx /0.52                       # translation speed (kt)
 
@@ -263,9 +267,18 @@ def historic_track_interpolation(st_time, ylon_tc, ylat_tc, ycpres, ywind, y0, x
             vu.append(vx * np.sin((gamma_h+180)*np.pi/180))
             vy.append(vx * np.cos((gamma_h+180)*np.pi/180))
             pn.append(1013)
-            p0.append(pmin[i] + j* (pmin[i+1]-pmin[i])/ts[i])
+            
+            # append pmin, wind with/without interpolation along the storm track
+            if interpolation:       p0.append(pmin[i] + j* (pmin[i+1]-pmin[i])/ts[i])
+            if not interpolation:   
+                if mode=='mean':    p0.append(np.mean((pmin[i], pmin[i+1])))
+                elif mode=='first': p0.append(pmin[i])
+            
             if wind.any() != None:
-                vmax.append(mwind[i] + j* (mwind[i+1]-mwind[i])/ts[i])    #[kt]
+                if interpolation:   vmax.append(mwind[i] + j* (mwind[i+1]-mwind[i])/ts[i])    #[kt]
+                if not interpolation:   
+                    if mode=='mean': vmax.append(np.mean((mwind[i], mwind[i+1])))   
+                    if mode=='first':vmax.append(mwind[i])     #[kt]
 
             # calculate lon, lat
             if not great_circle:
@@ -324,6 +337,141 @@ def historic_track_interpolation(st_time, ylon_tc, ylat_tc, ycpres, ywind, y0, x
     st.R = 4
 
     return st, time_input[loc]
+
+#def historic_track_segments(st_time, ylon_tc, ylat_tc, ycpres, ywind, y0, x0,
+#                            lat00, lon00, lat01, lon01, ts, dt_comp,
+#                            wind=None, great_circle=False, fit=False):
+#    '''
+#    Calculates storm track variables from storm track parameters and interpolates
+#    track points in between historical data (for "dt_comp" time step)
+#
+#    st_time                    - time track
+#    lat, lon                   - track coordinates (longitude, latitude)
+#    pmin, ywind                - storm track parameters
+#    x0, y0                     - target coordinates (longitude, latitude)
+#    lat0, lon0, lat1, lon1     - numerical domain bound limits
+#    ts                         - track time step data [hours]
+#    dt_comp                    - simulation computation time step [minutes]
+#    wind                       - False for using vmax approximation eq.
+#    great_circle               - True for using great circle lon,lat calculation
+#    fit                        - True for fitting vmax when ywind=0 (start of storm)
+#    '''
+#
+#    RE = 6378.135   # earth radius [km]
+#
+#    # cubic polynomial fitting curve for each IBTrACS basin
+#    p1, p2, p3, p4 = ibtrac_basin_fitting(x0, y0)
+#
+#    # generate lists
+#    time_storm = list(st_time)  # datetime format
+#    pmin = list(ycpres)
+#    lat = list(ylat_tc)
+#    lon = list(ylon_tc)
+#    if wind.any() != None:
+#        mwind = wind
+#        if fit:
+#            wind_fitting = p1 * np.power(pmin,3) + p2 * np.power(pmin,2) + p3 * np.power(pmin,1) + p4
+#            pos = np.where(mwind==0)
+#            mwind[pos] = wind_fitting[pos]
+#
+#    # number of time steps between consecutive interpolated track points in order
+#    # to  match SWAN computational time step
+#    ts = np.asarray(ts) * 60 / dt_comp     # (hours)
+#
+#    # initialize
+#    move, vmean, pn, p0, lon_t, lat_t, vmax = [], [], [], [], [], [], []
+#    vu, vy = [], []
+#    time_input = np.empty((0,),dtype='datetime64[ns]')
+#
+#    for i in range(0, len(time_storm)-1):
+#        # time array for SWAN input
+#        date_ini = time_storm[i]
+#        time_input0 = pd.date_range(
+#                date_ini, periods=int(ts[i]), freq='{0}MIN'.format(dt_comp))
+#        time_input = np.append(np.array(time_input), np.array(time_input0))
+#
+#        # track pair of successive coordinates
+#        lon1 = lon[i]
+#        lat1 = lat[i]
+#        lon2 = lon[i+1]
+#        lat2 = lat[i+1]
+#
+#        # translation speed 
+#        arcl_h, gamma_h = gc_distance(lat2, lon2, lat1, lon1)
+#        r = arcl_h * np.pi / 180.0 * RE     # distance between consecutive track points (km)
+#        dx = r / ts[i]                      # interpolation distance / hours step
+#        vx = float(dx) /3.6                 # translation speed (m/s)
+#        vx = vx /0.52                       # translation speed (kt)
+#
+#        for j in range(int(ts[i])):
+#            # append track parameters
+#            move.append(gamma_h)
+#            vmean.append(vx)
+#            vu.append(vx * np.sin((gamma_h+180)*np.pi/180))
+#            vy.append(vx * np.cos((gamma_h+180)*np.pi/180))
+#            pn.append(1013)
+#            p0.append(pmin[i]) #+ j* (pmin[i+1]-pmin[i])/ts[i])
+#            if wind.any() != None:
+#                vmax.append(mwind[i]) #+ j* (mwind[i+1]-mwind[i])/ts[i])    #[kt]
+#
+#            # calculate lon, lat
+#            if not great_circle:
+#                lon_h = lon1 - (dx*180/(RE*np.pi)) * np.sin(gamma_h*np.pi/180) * j
+#                lat_h = lat1 - (dx*180/(RE*np.pi)) * np.cos(gamma_h*np.pi/180) * j
+#            else:
+#                xt, yt = [], []
+#                glon, glat, baz = shoot(lon1, lat1, gamma_h + 180, float(dx) * j)
+#                xt = np.append(xt,glon)
+#                yt = np.append(yt,glat)
+#                lon_h = xt
+#                lat_h = yt
+#            lon_t.append(lon_h)
+#            lat_t.append(lat_h)
+#
+#    # to array
+#    move = np.array(move)
+#    vmean = np.array(vmean)
+#    vu = np.array(vu)
+#    vy = np.array(vy)
+#    p0 = np.array(p0)
+#    vmax = np.array(vmax)
+#    lon_t = np.array(lon_t)
+#    lat_t = np.array(lat_t)
+#
+#    # longitude sign convention --> (0º,360º)
+#    lon_t[lon_t<0]= lon_t[lon_t<0] + 360
+#
+#    # select interpolation data within the target domain area
+#    loc = []
+#    for i, (lo,la) in enumerate(zip(lon_t, lat_t)):
+#        if (lo<=lon01) & (lo>=lon00) & (la<=lat01) & (la>=lat00):
+#            loc.append(i)
+#
+#    # storm track (pd.DataFrame)
+#    st = pd.DataFrame(index=time_input[loc],
+#                      columns=['move','vf','vfx','vfy','pn','p0','lon','lat','vmax'])
+#    st['move'] = move[loc]
+#    st['vf'] = vmean[loc]
+#    st['vfx'] = vu[loc]
+#    st['vfy'] = vy[loc]
+#    st['pn'] = 1013
+#    st['p0'] = p0[loc]
+#    st['lon'] = lon_t[loc]
+#    st['lat'] = lat_t[loc]
+#    # vmax is calculated from Pmin-Vmax basin-fitting when the value is not given 
+#    if wind.any() != None:
+#        st['vmax'] = vmax[loc]
+#    else:
+#        st['vmax'] = p1 * np.power(p0[loc],3) + p2 * np.power(p0[loc],2) + p3 * np.power(p0[loc],1) + p4   # [kt]
+#
+#    # add some metadata
+#    # TODO: move to st.attrs (this metada gets lost with any operation with st)
+#    st.x0 = x0
+#    st.y0 = y0
+#    st.R = 4
+#
+#    return st, time_input[loc]
+
 
 def entrance_coords(delta, gamma, x0, y0, R, lon0, lon1, lat0, lat1):
     '''

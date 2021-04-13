@@ -556,95 +556,116 @@ class SwanIO_NONSTAT(SwanIO):
             storm_lon, storm_lat, storm_lat_orig, storm_p0, storm_pn, 
             storm_vfx, storm_vfy, storm_vmax)):
 
-            # Wind model code (from ADCIRC, transcribed by Antonio Espejo) and 
-            # later slightly modified by Sara Ortega to include TCs at southern 
-            # hemisphere
+            # generate vortex field when storm is given
+            if all (np.isnan(i) for i in (lo, la, la_orig, p0, pn, ut, vt, vmax)) == False:
 
-            # get distance and angle between points 
-            arcl, theta = geo_distance_azimuth(mg_lat, mg_lon, la, lo)
-            r = arcl * np.pi / 180.0 * RE
+                # Wind model code (from ADCIRC, transcribed by Antonio Espejo) and 
+                # later slightly modified by Sara Ortega to include TCs at southern 
+                # hemisphere
+    
+                # get distance and angle between points 
+                arcl, theta = geo_distance_azimuth(mg_lat, mg_lon, la, lo)
+                r = arcl * np.pi / 180.0 * RE
+    
+                # angle correction for southern hemisphere
+                if south_hemisphere:
+                    thet = np.arctan2((mg_lat-la)*pifac, -(mg_lon-lo)*pifac)
+                if not south_hemisphere:
+                    thet = np.arctan2((mg_lat-la)*pifac, (mg_lon-lo)*pifac)
+    
+                # ADCIRC MODEL 
+                CPD = (pn - p0) * 100    # central pressure deficit [Pa]
+                if CPD < 100: CPD = 100  # limit central pressure deficit
+    
+                # Wind model 
+                f = 2 * w * np.sin(abs(la)*np.pi/180)  # Coriolis
+    
+                # Substract the translational storm speed from the observed maximum 
+                # wind speed to avoid distortion in the Holland curve fit. 
+                # The translational speed will be added back later
+                vkt = vmax - np.sqrt(np.power(ut,2) + np.power(vt,2))   # [kt]
+    
+                # Convert wind speed from 10m altitude to wind speed at the top of 
+                # the atmospheric boundary layer
+                vgrad = vkt / beta    # [kt]
+                v = vgrad
+                vm = vgrad * 0.52     # [m/s]
+    
+                # Knaff et al. (2016) - Radius of maximum wind (RMW)
+                rm = 218.3784 - 1.2014*v + np.power(v/10.9844,2) - np.power(v/35.3052,3) - 145.509*np.cos(la*pifac)  # nautical mile
+                rm = rm * 1.852 * 1000   # from [n mi] to [m]
+                rn = rm / r              # []
+    
+                # Holland B parameter with upper and lower limits
+                B = rho_air * np.exp(1) * np.power(vm,2) / CPD
+                if B > 2.5: B = 2.5
+                elif B < 1: B = 1
+    
+                # Wind velocity at each node and time step   [m/s]
+                vg = np.sqrt(np.power(rn,B) * np.exp(1-np.power(rn,B)) * np.power(vm,2) + np.power(r,2)*np.power(f,2)/4) - r*f/2
+    
+                # Determine translation speed that should be added to final storm  
+                # wind speed. This is tapered to zero as the storm wind tapers to 
+                # zero toward the eye of the storm and at long distances from the storm
+                vtae = (abs(vg) / vgrad) * ut    # [m/s]
+                vtan = (abs(vg) / vgrad) * vt
+    
+                # Find the velocity components and convert from wind at the top of the 
+                # atmospheric boundary layer to wind at 10m elevation
+                if south_hemisphere:        hemisphere_sign = 1
+                if not south_hemisphere:    hemisphere_sign = -1
+                ve = hemisphere_sign * vg * beta * np.sin(thet)     # [m/s]
+                vn = vg * beta * np.cos(thet)
+    
+                # Convert from 1 minute averaged winds to 10 minute averaged winds
+                ve = ve * one2ten    # [m/s]
+                vn = vn * one2ten
+    
+                # Add the storm translation speed
+                vfe = ve + vtae      # [m/s]
+                vfn = vn + vtan
+    
+                # wind module
+                W = np.sqrt(np.power(vfe,2) + np.power(vfn,2))    # [m/s]
+    
+                # Surface pressure field
+                pr = p0 + (pn-p0) * np.exp(- np.power(rn,B))      # [mbar]
+                py, px = np.gradient(pr)
+                ang = np.arctan2(py, px) + np.sign(la_orig) * np.pi/2.0
+    
+                # Wind field
+                u_2d = W * np.cos(ang)    # m/s
+                v_2d = W * np.sin(ang)    # m/s
+                u_v_stack = np.vstack((u_2d, v_2d))
+    
+                # csv file 
+                save = op.join(p_case, '{0}_{1:06}.dat'.format(code, c))
+                np.savetxt(save, u_v_stack, fmt='%.2f')
+    
+                # wind list file
+                txt += '{0}_{1:06}.dat\n'.format(code, c)
+    
+                # hold wind data (m/s)
+                hld_W[:,:,c] = W
+                hld_D[:,:,c] =  270 - np.rad2deg(ang)  # direction (º clock. rel. north)
 
-            # angle correction for southern hemisphere
-            if south_hemisphere:
-                thet = np.arctan2((mg_lat-la)*pifac, -(mg_lon-lo)*pifac)
-            if not south_hemisphere:
-                thet = np.arctan2((mg_lat-la)*pifac, (mg_lon-lo)*pifac)
+            else: 
+                # generate null wind field when no storm (propagation time)
+                W = np.zeros((len(cg_lat), len(cg_lon)))
+                u_2d = W    # m/s
+                v_2d = W    # m/s
+                u_v_stack = np.vstack((u_2d, v_2d))
 
-            # ADCIRC MODEL 
-            CPD = (pn - p0) * 100    # central pressure deficit [Pa]
-            if CPD < 100: CPD = 100  # limit central pressure deficit
-
-            # Wind model 
-            f = 2 * w * np.sin(abs(la)*np.pi/180)  # Coriolis
-
-            # Substract the translational storm speed from the observed maximum 
-            # wind speed to avoid distortion in the Holland curve fit. 
-            # The translational speed will be added back later
-            vkt = vmax - np.sqrt(np.power(ut,2) + np.power(vt,2))   # [kt]
-
-            # Convert wind speed from 10m altitude to wind speed at the top of 
-            # the atmospheric boundary layer
-            vgrad = vkt / beta    # [kt]
-            v = vgrad
-            vm = vgrad * 0.52     # [m/s]
-
-            # Knaff et al. (2016) - Radius of maximum wind (RMW)
-            rm = 218.3784 - 1.2014*v + np.power(v/10.9844,2) - np.power(v/35.3052,3) - 145.509*np.cos(la*pifac)  # nautical mile
-            rm = rm * 1.852 * 1000   # from [n mi] to [m]
-            rn = rm / r              # []
-
-            # Holland B parameter with upper and lower limits
-            B = rho_air * np.exp(1) * np.power(vm,2) / CPD
-            if B > 2.5: B = 2.5
-            elif B < 1: B = 1
-
-            # Wind velocity at each node and time step   [m/s]
-            vg = np.sqrt(np.power(rn,B) * np.exp(1-np.power(rn,B)) * np.power(vm,2) + np.power(r,2)*np.power(f,2)/4) - r*f/2
-
-            # Determine translation speed that should be added to final storm  
-            # wind speed. This is tapered to zero as the storm wind tapers to 
-            # zero toward the eye of the storm and at long distances from the storm
-            vtae = (abs(vg) / vgrad) * ut    # [m/s]
-            vtan = (abs(vg) / vgrad) * vt
-
-            # Find the velocity components and convert from wind at the top of the 
-            # atmospheric boundary layer to wind at 10m elevation
-            if south_hemisphere:        hemisphere_sign = 1
-            if not south_hemisphere:    hemisphere_sign = -1
-            ve = hemisphere_sign * vg * beta * np.sin(thet)     # [m/s]
-            vn = vg * beta * np.cos(thet)
-
-            # Convert from 1 minute averaged winds to 10 minute averaged winds
-            ve = ve * one2ten    # [m/s]
-            vn = vn * one2ten
-
-            # Add the storm translation speed
-            vfe = ve + vtae      # [m/s]
-            vfn = vn + vtan
-
-            # wind module
-            W = np.sqrt(np.power(vfe,2) + np.power(vfn,2))    # [m/s]
-
-            # Surface pressure field
-            pr = p0 + (pn-p0) * np.exp(- np.power(rn,B))      # [mbar]
-            py, px = np.gradient(pr)
-            ang = np.arctan2(py, px) + np.sign(la_orig) * np.pi/2.0
-
-            # Wind field
-            u_2d = W * np.cos(ang)    # m/s
-            v_2d = W * np.sin(ang)    # m/s
-            u_v_stack = np.vstack((u_2d, v_2d))
-
-            # csv file 
-            save = op.join(p_case, '{0}_{1:06}.dat'.format(code, c))
-            np.savetxt(save, u_v_stack, fmt='%.2f')
-
-            # wind list file
-            txt += '{0}_{1:06}.dat\n'.format(code, c)
-
-            # hold wind data (m/s)
-            hld_W[:,:,c] = W
-            hld_D[:,:,c] =  270 - np.rad2deg(ang)  # direction (º clock. rel. north)
+                # csv file 
+                save = op.join(p_case, '{0}_{1:06}.dat'.format(code, c))
+                np.savetxt(save, u_v_stack, fmt='%.2f')
+    
+                # wind list file
+                txt += '{0}_{1:06}.dat\n'.format(code, c)
+    
+                # hold wind data (m/s)
+                hld_W[:,:,c] = 0
+                hld_D[:,:,c] = 0  # direction (º clock. rel. north)
 
         # winds file path
         save = op.join(p_case, 'series_{0}.dat'.format(code))
