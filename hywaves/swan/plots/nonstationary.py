@@ -626,7 +626,7 @@ def plot_case_output(
     xds_out = swan_wrap.extract_output(
         case_ini=case, case_end=case+1,
         mesh=mesh,
-    )[0]#.squeeze(drop=True)     # one case returns error for squeeze
+    )[0]
 
     # select time to plot
     xds_v = xds_out.isel(time=t_num)
@@ -726,7 +726,7 @@ def plot_case_output_grafiti(
     xds_out = swan_wrap.extract_output(
         case_ini=case, case_end=case+1,
         mesh=mesh,
-    )[0]#.squeeze(drop=True)     # one case returns error for squeeze
+    )[0]
 
     # figure
     fig, (axs) = plt.subplots(

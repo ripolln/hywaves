@@ -821,8 +821,14 @@ class SwanIO_NONSTAT(SwanIO):
             pass
         else:
             t += "POINTS 'outpts' FILE 'points_out.dat'\n"
-            t += "TABLE 'outpts' NOHEAD '{0}' {1} {2} {3}\n$\n".format(
+            t += "TABLE 'outpts' NOHEAD '{0}' {1} {2} {3}\n".format(
                 mesh.fn_output_points, out_vars, t0_iso, dt_out)
+
+            # spectra at output points
+            if self.proj.params['output_points_spec']:
+                t += "SPECOUT 'outpts' SPEC2D ABS '{0}' OUT {1} {2}\n".format(
+                    mesh.fn_output_spec, t0_iso, dt_out)
+            t += "$\n"
 
         # -- COMPUTE --
         t += 'TEST  1,0\n'
@@ -1065,6 +1071,120 @@ class SwanIO_NONSTAT(SwanIO):
         t0, dt_min = swn_info['TABLE_t0dt'], swn_info['TABLE_dtmin']
         time_out = pd.date_range(t0, periods=len(xds_out.time), freq='{0}min'.format(dt_min))
         xds_out = xds_out.assign_coords(time=time_out)
+
+        return xds_out
+
+    def output_points_spec(self, p_case, mesh):
+        'read spec_outpts_meshID.dat output file and returns xarray.Dataset'
+
+        def read_outpts_spec(p_outpts_spec):
+            'Read output spectral data for swan SPECOUT text file'
+
+            with open(p_outpts_spec) as f:
+
+                # skip header
+                for i in range(3): f.readline()
+
+                # skip TIME lines
+                for i in range(2): f.readline()
+
+                # skip LONLAT line
+                f.readline()
+
+                # get number of points and coordinates
+                n_points = int(f.readline().split()[0])
+                lon_points, lat_points = [], []
+                for i in range(n_points):
+                    lonlat = f.readline()
+                    lon_points.append(float(lonlat.split()[0]))
+                    lat_points.append(float(lonlat.split()[1]))
+
+                # skip AFREQ line
+                f.readline()
+
+                # get FREQs
+                n_freq = int(f.readline().split()[0])
+                freqs = []
+                for i in range(n_freq):
+                    freqs.append(float(f.readline()))
+
+                # skip NDIR line
+                f.readline()
+
+                # get DIRs
+                n_dir = int(f.readline().split()[0])
+                dirs = []
+                for i in range(n_dir):
+                    dirs.append(float(f.readline()))
+
+                # skip QUANT lines
+                for i in range(2): f.readline()
+
+                # skip vadens lines
+                for i in range(2): f.readline()
+
+                # get exception value
+                ex = float(f.readline().split()[0])
+
+                # start reading spectral output data
+                times = []
+                specs = []
+
+                # first time line
+                tl = f.readline()
+
+                while tl:
+                    time = datetime.strptime(tl.split()[0], '%Y%m%d.%H%M%S')
+                    times.append(time)
+
+                    # spectral output numpy storage
+                    spec_pts_t = np.ones((n_freq, n_dir, n_points))
+
+                    # read all points
+                    for p in range(n_points):
+
+                        # get factor
+                        f.readline()  # skip one line
+                        fac = float(f.readline())
+
+                        # read matrix
+                        for i in range(n_freq):
+                            spec_pts_t[i,:,p] = np.fromstring(f.readline(), sep=' ')
+
+                        # multiply spec by factor
+                        spec_pts_t[:,:,p] = spec_pts_t[:,:,p] * fac
+
+                    # append spectra
+                    specs.append(spec_pts_t)
+
+                    # read next time line (if any)
+                    tl = f.readline()
+
+                # file end, stack spec_pts for all times
+                spec_out = np.stack(specs, axis=-1)
+
+                # mount output to xarray.Dataset 
+                return xr.Dataset(
+                    {
+                        'lon_pts': (('point',), lon_points),
+                        'lat_pts': (('point',), lat_points),
+                        'spec': (('frequency', 'direction', 'point', 'time'), spec_out),
+                    },
+                    coords = {
+                        "frequency": freqs,
+                        "direction": dirs,
+                        "time": times,
+                    }
+                )
+
+        # extract output from selected mesh
+        p_dat = op.join(p_case, mesh.fn_output_spec)
+
+        # parse spec_output to xarray
+        xds_out = read_outpts_spec(p_dat)
+
+        # mesh ID
+        xds_out.attrs['mesh_ID'] = mesh.ID
 
         return xds_out
 
