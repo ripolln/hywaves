@@ -87,7 +87,7 @@ HyWaves - SWAN STATIONARY Methodology
 ## Install
 - - -
 
-Source code is currently privately hosted on GitLab at:  <https://gitlab.com/geocean/bluemath/hywaves/tree/master> 
+Source code is currently privately hosted on GitLab at:  <https://gitlab.com/geoocean/bluemath/hybrid-models/hywaves/tree/master> 
 
 
 <a name="ins_src"></a>
