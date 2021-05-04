@@ -13,10 +13,9 @@ A hybrid metamodel (numerical-statistical) approach to optimize complex waves ca
     3. [Install SWASH numerical model](#ins_swh)
 6. [Examples](#exp)
     1. [SWAN numerical wrap](#exp_1)
-    2. [HySWAN metamodel - Stationary](#exp_2)
-    3. [HySWAN metamodel - Nonstationary: Storms Vortex model](#exp_3)
-    4. [SWASH numerical wrap](#exp_4)
-    5. [HySWASH metamodel](#exp_5)
+    2. [HySWAN metamodel](#exp_2)
+    3. [SWASH numerical wrap](#exp_3)
+    4. [HySWASH metamodel](#exp_4)
 7. [Contributors](#ctr)
 8. [License](#lic)
 
@@ -184,27 +183,22 @@ Copy SWASH binary file to module resources
 - [demo 01 - STATIONARY](./scripts/hyswan/demo_01_stat.py): stationary example
 - [demo 02 - NON-STATIONARY](./scripts/hyswan/demo_02_nonstat.py): non-stationary example
 - [demo 03 - VORTEX PARAMETERS](./scripts/hyswan/demo_03_nonstat_vortex_params.py): non-stationary with TCs Vortex Model example (from parameters)
-- [demo 04 - VORTEX HISTORICAL](./scripts/hyswan/demo_03_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation)
-
+- [demo 04 - VORTEX HISTORICAL](./scripts/hyswan/demo_04_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation)
 - [notebook - SWAN Vortex Historical](./notebooks/hyswan/nb_02_VORTEX_NONSTAT.ipynb): non-stationary storm Vortex model simulation from historical storm track
 
 <a name="exp_2"></a>
-### HySWAN metamodel: MDA -> SWAN -> RBF
+### HySWAN metamodel: MDA -> SWAN -> RBF
 
 - [notebook - HyWaves](./notebooks/hyswan/nb_01_MDA_STATIONARY_RBF.ipynb): Waves dataset propagation to a point using MDA classfication, SWAN-STATIONARY numerical simulation and RBF reconstruction. 
-
-<a name="exp_3"></a>
-### HySWAN metamodel: MDA -> Storm Vortex Model -> SWAN -> RBF
-
 - [notebook - HyTcWaves](./notebooks/hyswan/nb_03_MDA_VORTEX_NONSTAT_RBF.ipynb): Waves from Parametrized tropical cyclones dataset solved using MDA classification, Vortex winds model, SWAN-NONSTATIONARY numerical simulation and RBF reconstruction. 
 
-<a name="exp_4"></a>
+<a name="exp_3"></a>
 ### SWASH numerical wrap 
 
 - [notebook - SWASH Case](./notebooks/hyswash/Swash_case.ipynb): An easy-to-use Jupyter Notebook to model wave transformation over a shallow cross-shore profile
 
-<a name="exp_5"></a>
-### HySWASH: MDA -> SWASH - RBF metamodel
+<a name="exp_4"></a>
+### HySWASH metamodel: MDA -> SWASH - RBF
 
 
 <a name="ctr"></a>
