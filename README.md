@@ -13,8 +13,8 @@ A hybrid metamodel (numerical-statistical) approach to optimize complex waves ca
     3. [Install SWASH numerical model](#ins_swh)
 6. [Examples](#exp)
     1. [SWAN numerical wrap](#exp_1)
-    2. [HySWAN metamodel](#exp_2)
-    3. [SWAN Storms Vortex model](#exp_3)
+    2. [HySWAN metamodel - Stationary](#exp_2)
+    3. [HySWAN metamodel - Nonstationary: Storms Vortex model](#exp_3)
     4. [SWASH numerical wrap](#exp_4)
     5. [HySWASH metamodel](#exp_5)
 7. [Contributors](#ctr)
@@ -187,7 +187,6 @@ Copy SWASH binary file to module resources
 - [demo 04 - VORTEX HISTORICAL](./scripts/hyswan/demo_03_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation)
 
 - [notebook - SWAN Vortex Historical](./notebooks/hyswan/nb_02_VORTEX_NONSTAT.ipynb): non-stationary storm Vortex model simulation from historical storm track
-
 
 <a name="exp_2"></a>
 ### HySWAN metamodel: MDA -> SWAN -> RBF
