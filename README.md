@@ -184,19 +184,19 @@ Copy SWASH binary file to module resources
 - [demo 01 - STATIONARY](./scripts/hyswan/demo_01_stat.py): stationary example
 - [demo 02 - NON-STATIONARY](./scripts/hyswan/demo_02_nonstat.py): non-stationary example
 - [demo 03 - VORTEX PARAMETERS](./scripts/hyswan/demo_03_nonstat_vortex_params.py): non-stationary with TCs Vortex Model example (from parameters)
-- [demo 03 - VORTEX HISTORICAL](./scripts/hyswan/demo_03_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation)
+- [demo 04 - VORTEX HISTORICAL](./scripts/hyswan/demo_03_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation)
 
-- [notebook - SWAN Vortex Historical](./notebooks/hyswan/nb_02_Vortex_Historical.ipynb): non-stationary storm Vortex model simulation from historical storm track
-- [notebook - SWAN Vortex MDA multiple cases](./notebooks/hyswan/nb_03_demo_vortex_mda.ipynb): non-stationary storm Vortex model simulation multiple storm cases (from a MaxDiss classification example)
+- [notebook - SWAN Vortex Historical](./notebooks/hyswan/nb_02_VORTEX_NONSTAT.ipynb): non-stationary storm Vortex model simulation from historical storm track
 
 <a name="exp_2"></a>
-### HySWAN: MDA -> SWAN -> RBF metamodel 
+### HySWAN metamodel: MDA -> SWAN -> RBF
 
-- [notebook - HySWAN Metamodel](./notebooks/hyswan/nb_01_MDA_SWAN_RBF.ipynb): HySWAN example: simplified metamodel waves propagation
+- [notebook - HyWaves](./notebooks/hyswan/nb_01_MDA_STATIONARY_RBF.ipynb): Waves dataset propagation to a point using MDA classfication, SWAN-STATIONARY numerical simulation and RBF reconstruction. 
 
 <a name="exp_3"></a>
-### HySWAN: Storm Vortex Model
+### HySWAN metamodel: MDA -> Storm Vortex Model -> SWAN -> RBF
 
+- [notebook - HyTcWaves](./notebooks/hyswan/nb_03_MDA_VORTEX_NONSTAT_RBF.ipynb): Waves from Parametrized tropical cyclones dataset solved using MDA classification, Vortex winds model, SWAN-NONSTATIONARY numerical simulation and RBF reconstruction. 
 
 <a name="exp_4"></a>
 ### SWASH numerical wrap 
