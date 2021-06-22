@@ -122,8 +122,9 @@ def RBF_Reconstruction(
     '''
 
     # parameters
-    sigma_min = 0.1
-    sigma_max = 0.7
+    sigma_min = 0.1#0.16 #0.1
+    sigma_max = 0.7#0.9 #0.7
+    print('sigma_min: ', sigma_min, 'sigma_max: ', sigma_max)
 
     # normalize subset and dataset
     dataset_norm, mins, maxs = Normalize(
@@ -156,8 +157,8 @@ def RBF_Reconstruction(
         t3 = time.time()  # interpolation time
 
         print(
-            'ix_scalar: {0},  optimization: {1:.2f} | interpolation: {2:.2f}'.format(
-                ix, t1-t0, t3-t2)
+            'ix_scalar: {0},  optimization: {1:.2f} | interpolation: {2:.2f}, sigma_opt: {3}'.format(
+                ix, t1-t0, t3-t2, opt_sigma)
         )
 
     # RBF directional variables
@@ -201,8 +202,8 @@ def RBF_Reconstruction(
         output[:,ix] = out
 
         print(
-            'ix_directional: {0},  optimization: {1:.2f} | interpolation: {2:.2f}'.format(
-                ix, t1-t0, t3-t2)
+            'ix_directional: {0},  optimization: {1:.2f} | interpolation: {2:.2f}, {3}, {4}'.format(
+                ix, t1-t0, t3-t2, opt_sigma_x, opt_sigma_y)
         )
 
     return output
@@ -246,7 +247,7 @@ def RBF_Validation(
         print('mean squared error : {0}'.format(mse))
         print()
 
-        # store data for output
+        # store data for output
         l_mse.append(mse)
         l_trn_ix.append(train_index)
         l_tst_ix.append(test_index)

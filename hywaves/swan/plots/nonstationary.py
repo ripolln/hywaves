@@ -116,7 +116,7 @@ def axplot_quiver(ax, XX, YY, vv, vd):
     if scale <0:    scale *= -1
 
     x_q, y_q, var_q, u, v = calc_quiver(XX, YY, vv, vd, size=size)
-
+    
     ax.quiver(
         x_q, y_q, -u*var_q, -v*var_q,
         width=0.0015,
@@ -169,7 +169,7 @@ def axplot_storm_track(ax, st, cat_colors=True):
 
     # plot track
     plt.plot(
-        st.lon, st.lat, '-', linewidth=4,
+        xt, yt, '-', linewidth=4,
         color='black', label='Storm Track'
     )
 
@@ -180,8 +180,8 @@ def axplot_storm_track(ax, st, cat_colors=True):
         categ = np.array(get_category(st.p0))
 
         for c in range(7):
-            lonc = st.lon[np.where(categ==c)[0]]
-            latc = st.lat[np.where(categ==c)[0]]
+            lonc = xt[np.where(categ==c)[0]]
+            latc = yt[np.where(categ==c)[0]]
             label = 'cat {0}'.format(c)
             if c==6: label = 'unknown'
             ax.plot(
@@ -190,10 +190,11 @@ def axplot_storm_track(ax, st, cat_colors=True):
             )
 
     # target point
-    ax.plot(
-        st.x0, st.y0, '+', mew=3, ms=15,
-        color='dodgerblue', label='target',
-    )
+    if 'x0' in st.keys():
+        ax.plot(
+            st.x0, st.y0, '+', mew=3, ms=15,
+            color='dodgerblue', label='target',
+        )
 
 def axplot_series(ax, xda_v, lc, mesh_ID, linestyle='-'):
     'axes plot variables series'
@@ -404,7 +405,7 @@ def plot_case_vortex_input(swan_wrap, storm_track_list=[], t_num=10, case_number
 
     # plot quiver
     if quiver:
-        axplot_quiver(axs, X, Y, xds_v_wnd.values[:], xds_v_dir.values[:])  # TODO .values[:])
+        axplot_quiver(axs, X, Y, xds_v_wnd.values[:], xds_v_dir.values[:])
 
     # plot shoreline
     shore = swan_proj.shore
@@ -475,8 +476,11 @@ def plot_case_vortex_grafiti(swan_wrap, storm_track_list=[], case_number=0,
     var_units = xds_var.units
 
     # get mesh data from output dataset
-    X = xds_var['lon'].values[:]
-    Y = xds_var['lat'].values[:]
+    coords_mode = swan_proj.params['coords_mode']
+    if coords_mode == 'SPHERICAL':      xa, ya = 'lon', 'lat'
+    else:                               xa, ya = 'X', 'Y'
+    X = xds_var[xa].values[:]
+    Y = xds_var[ya].values[:]
 
     # maximum and minimum values 
     vmax = float(xds_var.max().values)
@@ -637,10 +641,8 @@ def plot_case_output(
 
     # get mesh data from output dataset
     coords_mode = swan_proj.params['coords_mode']
-    if coords_mode == 'SPHERICAL':
-        xa, ya = 'lon', 'lat'
-    else:
-        xa, ya = 'X', 'Y'
+    if coords_mode == 'SPHERICAL':      xa, ya = 'lon', 'lat'
+    else:                               xa, ya = 'X', 'Y'
     X = xds_var[xa].values[:]
     Y = xds_var[ya].values[:]
 
@@ -670,7 +672,7 @@ def plot_case_output(
 
     # plot quiver
     if quiver:
-        axplot_quiver(axs, X, Y, xds_var.values[:], xds_v.Dir.values[:])
+        axplot_quiver(axs, X, Y, xds_var.values[:], xds_v.Dir.values[:])            
 
     # plot shoreline
     shore = swan_proj.shore
@@ -740,10 +742,8 @@ def plot_case_output_grafiti(
 
     # get mesh data from output dataset
     coords_mode = swan_proj.params['coords_mode']
-    if coords_mode == 'SPHERICAL':
-        xa, ya = 'lon', 'lat'
-    else:
-        xa, ya = 'X', 'Y'
+    if coords_mode == 'SPHERICAL':      xa, ya = 'lon', 'lat'
+    else:                               xa, ya = 'X', 'Y'
     X = xds_var[xa].values[:]
     Y = xds_var[ya].values[:]
 
@@ -885,8 +885,11 @@ def axplot_grafiti(ax, swan_proj, xds_case, case_number, var_name,
     xds_var = xds_case[var_name]
 
     # get mesh data from output dataset
-    X = xds_var['lon'].values[:]
-    Y = xds_var['lat'].values[:]
+    coords_mode = swan_proj.params['coords_mode']
+    if coords_mode == 'SPHERICAL':      xa, ya = 'lon', 'lat'
+    else:                               xa, ya = 'X', 'Y'
+    X = xds_var[xa].values[:]
+    Y = xds_var[ya].values[:]
 
     # grafiti
     xds_var_max = xds_var.max(dim='time')

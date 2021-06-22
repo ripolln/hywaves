@@ -45,6 +45,8 @@ def calc_quiver(X, Y, var, vdir, size=30):
 
     opt. args
     size - quiver mesh size
+    
+    **Spherical direction convention: direction clockwise from geographic north
 
     returns data for quiver plot (x_q, y_q, var_q, u, v)
         then plot with: plt.quiver(x_q, y_q, -u*var_q, -v*var_q)
@@ -126,6 +128,9 @@ def custom_cmap(numcolors, map1, m1ini, m1end, map2, m2ini, m2end):
     return newcmp
 
 def bathy_cmap(bottom_lim, top_lim):
+    '''
+    Generate custom colormap for bathymetry plots
+    '''
     
     # colormaps
     colors1 = cmocean.cm.turbid
