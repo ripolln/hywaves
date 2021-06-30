@@ -10,13 +10,9 @@ A hybrid metamodel (numerical-statistical) approach to optimize complex waves ca
 5. [Install](#ins)
     1. [Install from sources](#ins_src)
     2. [Install SWAN numerical model](#ins_swn)
-    3. [Install SWASH numerical model](#ins_swh)
 6. [Examples](#exp)
     1. [SWAN numerical wrap](#exp_1)
     2. [HySWAN metamodel](#exp_2)
-    3. [SWAN Storms Vortex model](#exp_3)
-    4. [SWASH numerical wrap](#exp_4)
-    5. [HySWASH metamodel](#exp_5)
 7. [Contributors](#ctr)
 8. [License](#lic)
 
@@ -47,11 +43,6 @@ Numerical models
 - [storms](./hywaves/swan/storms.py): storm parameters function 
 - [plots](./hywaves/swan/plots/): plotting module 
 
-[swash](./hywaves/swash/): SWASH numerical model toolbox 
-- [io](./hywaves/swan/io.py): SWASH numerical model input/output operations
-- [wrap](./hywaves/swan/wrap.py): SWASH numerical model python wrap 
-- [plots](./hywaves/swan/plots/): plotting module 
-
 Statistical modules 
 
 - [mda](./hywaves/statistical/mda.py): MaxDiss classification module 
@@ -68,10 +59,6 @@ SWAN numerical model detailed documentation can be found at: <http://swanmodel.s
 - [SWAN install/compile manual](http://swanmodel.sourceforge.net/download/download.htm)
 - [SWAN user manual](http://swanmodel.sourceforge.net/online_doc/swanuse/)
 
-SWASH numerical model detailed documentation can be found at: <http://swash.sourceforge.net/>
-
-- [SWASH install/compile manual](http://swash.sourceforge.net/download/download.htm)
-- [SWASH user manual](http://swash.sourceforge.net/online_doc/swashuse/swashuse.html)
 
 <a name="sch"></a>
 ## Schemes
@@ -87,7 +74,7 @@ HyWaves - SWAN STATIONARY Methodology
 ## Install
 - - -
 
-Source code is currently privately hosted on GitLab at:  <https://gitlab.com/geocean/bluemath/hywaves/tree/master> 
+Source code is currently privately hosted on GitLab at:  <https://gitlab.com/geoocean/bluemath/hybrid-models/hywaves/tree/master> 
 
 
 <a name="ins_src"></a>
@@ -140,39 +127,6 @@ Copy SWAN binary file to module resources
   >>> swan.set_swan_binary_file('swan.exe')
 ```
 
-<a name="ins_swh"></a>
-### Install SWASH numerical model 
-
-Download and Compile SWASH numerical model:
-
-```bash
-  # you may need to install a fortran compiler
-  sudo apt install gfortran
-
-  # download and unpack
-  wget http://swash.sourceforge.net/download/zip/swash-6.01.tar.gz
-  tar -zxvf swash-6.01.tar.gz
-
-  # compile numerical model
-  cd swash-6.01/
-  make config
-  make ser
-```
-
-Copy SWASH binary file to module resources
-
-```bash
-  # Launch a python interpreter
-  $ python
-
-  Python 3.6.9 (default, Apr 18 2020, 01:56:04) 
-  [GCC 8.4.0] on linux
-  Type "help", "copyright", "credits" or "license" for more information.
-  
-  >>> from hywaves import swash
-  >>> swash.set_swash_binary_file('swash.exe')
-```
-
 
 <a name="exp"></a>
 ## Examples:
@@ -184,27 +138,14 @@ Copy SWASH binary file to module resources
 - [demo 01 - STATIONARY](./scripts/hyswan/demo_01_stat.py): stationary example
 - [demo 02 - NON-STATIONARY](./scripts/hyswan/demo_02_nonstat.py): non-stationary example
 - [demo 03 - VORTEX PARAMETERS](./scripts/hyswan/demo_03_nonstat_vortex_params.py): non-stationary with TCs Vortex Model example (from parameters)
-- [demo 03 - VORTEX HISTORICAL](./scripts/hyswan/demo_03_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation)
-
-- [notebook - SWAN Vortex Historical](./notebooks/hyswan/nb_02_Vortex_Historical.ipynb): non-stationary storm Vortex model simulation from historical storm track
-- [notebook - SWAN Vortex MDA multiple cases](./notebooks/hyswan/nb_03_demo_vortex_mda.ipynb): non-stationary storm Vortex model simulation multiple storm cases (from a MaxDiss classification example)
+- [demo 04 - VORTEX HISTORICAL](./scripts/hyswan/demo_04_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation)
+- [notebook - SWAN Vortex Historical](./notebooks/hyswan/nb_02_VORTEX_NONSTAT.ipynb): non-stationary storm Vortex model simulation from historical storm track
 
 <a name="exp_2"></a>
-### HySWAN: MDA -> SWAN -> RBF metamodel 
+### HySWAN metamodel: MDA -> SWAN -> RBF
 
-- [notebook - HySWAN Metamodel](./notebooks/hyswan/nb_01_MDA_SWAN_RBF.ipynb): HySWAN example: simplified metamodel waves propagation
-
-<a name="exp_3"></a>
-### HySWAN: Storm Vortex Model
-
-
-<a name="exp_4"></a>
-### SWASH numerical wrap 
-
-- [notebook - SWASH Case](./notebooks/hyswash/Swash_case.ipynb): An easy-to-use Jupyter Notebook to model wave transformation over a shallow cross-shore profile
-
-<a name="exp_5"></a>
-### HySWASH: MDA -> SWASH - RBF metamodel
+- [notebook - HyWaves](./notebooks/hyswan/nb_01_MDA_STATIONARY_RBF.ipynb): Waves dataset propagation to a point using MDA classfication, SWAN-STATIONARY numerical simulation and RBF reconstruction. 
+- [notebook - HyTcWaves](./notebooks/hyswan/nb_03_MDA_VORTEX_NONSTAT_RBF.ipynb): Waves from Parametrized tropical cyclones dataset solved using MDA classification, Vortex winds model, SWAN-NONSTATIONARY numerical simulation and RBF reconstruction. 
 
 
 <a name="ctr"></a>
