@@ -15,6 +15,43 @@ from scipy import interpolate
 from .geo import geo_distance_azimuth, geo_distance_cartesian, degN2degC
 
 # output variables metadata 'CODE':('out_name', 'units', 'description')
+partit_vars = ['HsPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
+              ['TpPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
+              ['DrPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
+              ['DsPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
+              ['WfPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
+              ['WlPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
+              ['StPT{0:02d}'.format(i) for i in np.arange(1,10+1)]
+
+partit_vns = {
+       'PTSIGN': ['HsPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
+       'PTRTP': ['TpPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
+       'PTDIR': ['DrPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
+       'PTDSPR': ['DsPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
+       'PTWFRAC': ['WfPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
+       'PTWLEN': ['WlPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
+       'PTSTEEP': ['StPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
+                  }
+            
+#meta_out_swn = {
+#    'HSIGN':  ('Hsig', 'm', 'Significant Wave Height'),
+#    'DIR':    ('Dir', 'º', 'Waves Direction'),
+#    'PDIR':   ('PkDir', 'º', 'PkDir'),
+#    'TM02':   ('Tm02', 's', 'Waves Mean Period'),
+#    'TPS':    ('Tp', 's', 'Waves Peak Period'),
+#    'DSPR':   ('Dspr', 'º', 'Waves Directional Spread'),
+#    'WATLEV': ('WaterLevel', 'm', 'Water Level'),
+#    'WIND_X': ('Windv_x', 'm/s', 'Wind Speed (x)'),
+#    'WIND_Y': ('Windv_y', 'm/s', 'Wind Speed (y)'),
+#    'PTHSIGN':(['HsPT{0:02d}'.format(i) for i in np.arange(1,10+1)], 'm', 'Partition of Significant Wave Height'),
+#    'PTRTP':  (['TpPT{0:02d}'.format(i) for i in np.arange(1,10+1)], 's', 'Partition of Waves Peak Period'),
+#    'PTDIR':  (['DrPT{0:02d}'.format(i) for i in np.arange(1,10+1)], 'º', 'Partition of Waves Direction'),
+#    'PTDSPR': (['DsPT{0:02d}'.format(i) for i in np.arange(1,10+1)], 'º', 'Partition of directional spread'),
+#    'PTWFRAC':(['WfPT{0:02d}'.format(i) for i in np.arange(1,10+1)], '-', 'Partition of wind fraction'),
+#    'PTWLEN': (['WlPT{0:02d}'.format(i) for i in np.arange(1,10+1)], 'm', 'Partition of average wave length'),
+#    'PTSTEEP':(['StPT{0:02d}'.format(i) for i in np.arange(1,10+1)], '-', 'Partition of wave steepness'),
+#    'OUT':    ('OUT', '-', 'OUT'),
+#}
 meta_out_swn = {
     'HSIGN':  ('Hsig', 'm', 'Significant Wave Height'),
     'DIR':    ('Dir', 'º', 'Waves Direction'),
@@ -25,14 +62,24 @@ meta_out_swn = {
     'WATLEV': ('WaterLevel', 'm', 'Water Level'),
     'WIND_X': ('Windv_x', 'm/s', 'Wind Speed (x)'),
     'WIND_Y': ('Windv_y', 'm/s', 'Wind Speed (y)'),
+    'PTHSIGN':('Hs_part', 'm', 'Partition of Significant Wave Height'),
+    'PTRTP':  ('Tp_part', 's', 'Partition of Waves Peak Period'),
+    'PTDIR':  ('Dir_part', 'º', 'Partition of Waves Direction'),
+    'PTDSPR': ('Dspr_part', 'º', 'Partition of directional spread'),
+    'PTWFRAC':('Wfrac_part', '-', 'Partition of wind fraction'),
+    'PTWLEN': ('Wlen_part', 'm', 'Partition of average wave length'),
+    'PTSTEEP':('Steep_part', '-', 'Partition of wave steepness'),
     'OUT':    ('OUT', '-', 'OUT'),
 }
 
 # same but for .mat output keys 
-cmat = ['Hsig', 'Dir', 'PkDir', 'Tm02', 'TPsmoo', 'Dspr', 'Watlev', 'Windv_x', 'Windv_y']
-cmet = ['HSIGN', 'DIR', 'PDIR', 'TM02', 'TPS', 'DSPR', 'WATLEV', 'WIND_X', 'WIND_Y']
+cmat = ['Hsig', 'Dir', 'PkDir', 'Tm02', 'TPsmoo', 'Dspr', 'Watlev', 'Windv_x', 'Windv_y',
+        'Hs_part', 'Tp_part', 'Dir_part', 'Dspr_part', 'Wfrac_part', 'Wlen_part', 'Steep_part']
+cmet = ['HSIGN', 'DIR', 'PDIR', 'TM02', 'TPS', 'DSPR', 'WATLEV', 'WIND_X', 'WIND_Y',
+        'PTHSIGN', 'PTRTP', 'PTDIR', 'PTDSPR', 'PTWFRAC', 'PTWLEN', 'PTSTEEP']
 meta_out_mat = {k:meta_out_swn[v] for k,v in zip(cmat,cmet)}
 
+    
 
 # input.swn TEMPLATES - COMMON
 
@@ -598,7 +645,7 @@ class SwanIO_NONSTAT(SwanIO):
         with open(save, 'w') as f:
             f.write(txt)
 
-    def make_vortex_files_original(self, p_case, case_id, mesh,
+    def make_vortex_files(self, p_case, case_id, mesh,
                           storm_track):
         '''
         Generate event wind mesh files (swan compatible)
@@ -807,7 +854,7 @@ class SwanIO_NONSTAT(SwanIO):
         xds_vortex.to_netcdf(p_vortex)
 
     # for SHyTCWaves, cartesian coordinates + open ocean
-    def make_vortex_files(self, p_case, case_id, mesh, storm_track):
+    def make_vortex_files_NEW(self, p_case, case_id, mesh, storm_track):
         '''
         Generate event wind mesh files (swan compatible)
 
@@ -1129,6 +1176,9 @@ class SwanIO_NONSTAT(SwanIO):
 
         # output variables
         out_vars = ' '.join(self.proj.params['output_variables'])
+        out_vars_table = self.proj.params['output_variables']
+        out_vars_table = [x for x in out_vars_table if x not in ['PTHSIGN','PTRTP','PTDIR','PTDSPR','PTWFRAC','PTWLEN','PTSTEEP']]
+        out_vars_table = ' '.join(out_vars_table)
 
         # -- OUTPUT: BLOCK  -- 
         dt_out = self.proj.params['output_deltt']
@@ -1150,7 +1200,7 @@ class SwanIO_NONSTAT(SwanIO):
         else:
             t += "POINTS 'outpts' FILE 'points_out.dat'\n"
             t += "TABLE 'outpts' NOHEAD '{0}' {1} {2} {3}\n".format(
-                mesh.fn_output_points, out_vars, t0_iso, dt_out)
+                mesh.fn_output_points, out_vars_table, t0_iso, dt_out)
             # wave spectra
             if self.proj.params['output_points_spec']:
                 t += "SPECOUT 'outpts' SPEC2D ABS '{0}' OUT {1} {2}\n".format(
@@ -1301,7 +1351,51 @@ class SwanIO_NONSTAT(SwanIO):
         for ix_t, ds in enumerate(dates_str):
             xds_t = xr.Dataset()
             for vn in ks:
-                xds_t[vn] = (('Y','X',), dmat['{0}_{1}'.format(vn, ds)])
+                if vn not in partit_vars:
+                    xds_t[vn] = (('Y','X',), dmat['{0}_{1}'.format(vn, ds)])
+            # partition variables
+            if 'HsPT01' in ks:
+                hs_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
+                for i,cpt in enumerate(partit_vns['PTSIGN']):
+                    hs_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
+                xds_t['Hs_part'] = (('partit','Y','X',), hs_pt)
+                
+            if 'TpPT01' in ks:
+                tp_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
+                for i,cpt in enumerate(partit_vns['PTRTP']):
+                    tp_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
+                xds_t['Tp_part'] = (('partit','Y','X',), tp_pt)
+
+            if 'DrPT01' in ks:
+                dr_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
+                for i,cpt in enumerate(partit_vns['PTDIR']):
+                    dr_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
+                xds_t['Dir_part'] = (('partit','Y','X',), dr_pt)
+
+            if 'DsPT01' in ks:
+                ds_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
+                for i,cpt in enumerate(partit_vns['PTDSPR']):
+                    ds_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
+                xds_t['Dspr_part'] = (('partit','Y','X',), ds_pt)
+
+            if 'WfPT01' in ks:
+                wf_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
+                for i,cpt in enumerate(partit_vns['PTWFRAC']):
+                    wf_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
+                xds_t['Wfrac_part'] = (('partit','Y','X',), wf_pt)
+
+            if 'WlPT01' in ks:
+                wl_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
+                for i,cpt in enumerate(partit_vns['PTWFRAC']):
+                    wl_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
+                xds_t['Wlen_part'] = (('partit','Y','X',), wl_pt)
+
+            if 'StPT01' in ks:
+                st_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
+                for i,cpt in enumerate(partit_vns['PTWFRAC']):
+                    st_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
+                xds_t['Steep_part'] = (('partit','Y','X',), st_pt)
+
             l_times.append(xds_t)
 
         # join at times dim

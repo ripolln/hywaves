@@ -198,7 +198,8 @@ def historic_track_interpolation(st_time, ylon_tc, ylat_tc, ycpres, ywind, y0, x
         arcl_h, gamma_h = gc_distance(lat2, lon2, lat1, lon1)
         r = arcl_h * np.pi / 180.0 * RE     # distance between consecutive storm coordinates [km]
         dx = r / ts[i]                      # distance during time step
-        vx = float(dx) /(ts_h/ts) /3.6      # translation speed [km to m/s]
+        tx = ts_h[i] / ts[i]                # time period during time step
+        vx = float(dx) / tx / 3.6           # translation speed [km to m/s]
         vx = vx /0.52                       # translation speed [m/s to kt]
 
         for j in range(int(ts[i])):
