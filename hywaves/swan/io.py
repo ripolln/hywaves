@@ -4,7 +4,7 @@
 import os
 import os.path as op
 import shutil as su
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -12,46 +12,9 @@ import xarray as xr
 from scipy.io import loadmat
 from scipy import interpolate
 
-from .geo import geo_distance_azimuth, geo_distance_cartesian, degN2degC
+from .vortex import vortex_model
 
 # output variables metadata 'CODE':('out_name', 'units', 'description')
-partit_vars = ['HsPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
-              ['TpPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
-              ['DrPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
-              ['DsPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
-              ['WfPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
-              ['WlPT{0:02d}'.format(i) for i in np.arange(1,10+1)] + \
-              ['StPT{0:02d}'.format(i) for i in np.arange(1,10+1)]
-
-partit_vns = {
-       'PTSIGN': ['HsPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
-       'PTRTP': ['TpPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
-       'PTDIR': ['DrPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
-       'PTDSPR': ['DsPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
-       'PTWFRAC': ['WfPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
-       'PTWLEN': ['WlPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
-       'PTSTEEP': ['StPT{0:02d}'.format(i) for i in np.arange(1,10+1)],
-                  }
-            
-#meta_out_swn = {
-#    'HSIGN':  ('Hsig', 'm', 'Significant Wave Height'),
-#    'DIR':    ('Dir', 'º', 'Waves Direction'),
-#    'PDIR':   ('PkDir', 'º', 'PkDir'),
-#    'TM02':   ('Tm02', 's', 'Waves Mean Period'),
-#    'TPS':    ('Tp', 's', 'Waves Peak Period'),
-#    'DSPR':   ('Dspr', 'º', 'Waves Directional Spread'),
-#    'WATLEV': ('WaterLevel', 'm', 'Water Level'),
-#    'WIND_X': ('Windv_x', 'm/s', 'Wind Speed (x)'),
-#    'WIND_Y': ('Windv_y', 'm/s', 'Wind Speed (y)'),
-#    'PTHSIGN':(['HsPT{0:02d}'.format(i) for i in np.arange(1,10+1)], 'm', 'Partition of Significant Wave Height'),
-#    'PTRTP':  (['TpPT{0:02d}'.format(i) for i in np.arange(1,10+1)], 's', 'Partition of Waves Peak Period'),
-#    'PTDIR':  (['DrPT{0:02d}'.format(i) for i in np.arange(1,10+1)], 'º', 'Partition of Waves Direction'),
-#    'PTDSPR': (['DsPT{0:02d}'.format(i) for i in np.arange(1,10+1)], 'º', 'Partition of directional spread'),
-#    'PTWFRAC':(['WfPT{0:02d}'.format(i) for i in np.arange(1,10+1)], '-', 'Partition of wind fraction'),
-#    'PTWLEN': (['WlPT{0:02d}'.format(i) for i in np.arange(1,10+1)], 'm', 'Partition of average wave length'),
-#    'PTSTEEP':(['StPT{0:02d}'.format(i) for i in np.arange(1,10+1)], '-', 'Partition of wave steepness'),
-#    'OUT':    ('OUT', '-', 'OUT'),
-#}
 meta_out_swn = {
     'HSIGN':  ('Hsig', 'm', 'Significant Wave Height'),
     'DIR':    ('Dir', 'º', 'Waves Direction'),
@@ -74,12 +37,11 @@ meta_out_swn = {
 
 # same but for .mat output keys 
 cmat = ['Hsig', 'Dir', 'PkDir', 'Tm02', 'TPsmoo', 'Dspr', 'Watlev', 'Windv_x', 'Windv_y',
-        'Hs_part', 'Tp_part', 'Dir_part', 'Dspr_part', 'Wfrac_part', 'Wlen_part', 'Steep_part']
+        'HsPT', 'TpPT', 'DrPT', 'DsPT', 'WfPT', 'WlPT', 'StPT']
 cmet = ['HSIGN', 'DIR', 'PDIR', 'TM02', 'TPS', 'DSPR', 'WATLEV', 'WIND_X', 'WIND_Y',
         'PTHSIGN', 'PTRTP', 'PTDIR', 'PTDSPR', 'PTWFRAC', 'PTWLEN', 'PTSTEEP']
 meta_out_mat = {k:meta_out_swn[v] for k,v in zip(cmat,cmet)}
 
-    
 
 # input.swn TEMPLATES - COMMON
 
@@ -312,120 +274,6 @@ class SwanIO(object):
 
         return xds_out
 
-    def output_case_spec(self, p_case, mesh):
-        'read spec_output_meshID.dat output file and returns xarray.Dataset'
-
-        def read_outpts_spec(p_outpts_spec):
-            'Read output spectral data for swan SPECOUT text file'
-
-            with open(p_outpts_spec) as f:
-
-                # skip header
-                for i in range(3): f.readline()
-
-                # skip TIME lines
-                for i in range(2): f.readline()
-
-                # skip LONLAT line
-                f.readline()
-
-                # get number of points and coordinates
-                n_points = int(f.readline().split()[0])
-                lon_points, lat_points = [], []
-                for i in range(n_points):
-                    lonlat = f.readline()
-                    lon_points.append(float(lonlat.split()[0]))
-                    lat_points.append(float(lonlat.split()[1]))
-
-                # skip AFREQ line
-                f.readline()
-
-                # get FREQs
-                n_freq = int(f.readline().split()[0])
-                freqs = []
-                for i in range(n_freq):
-                    freqs.append(float(f.readline()))
-
-                # skip NDIR line
-                f.readline()
-
-                # get DIRs
-                n_dir = int(f.readline().split()[0])
-                dirs = []
-                for i in range(n_dir):
-                    dirs.append(float(f.readline()))
-
-                # skip QUANT lines
-                for i in range(2): f.readline()
-
-                # skip vadens lines
-                for i in range(2): f.readline()
-
-                # get exception value
-                ex = float(f.readline().split()[0])
-
-                # start reading spectral output data
-                times = []
-                specs = []
-
-                # first time line
-                tl = f.readline()
-
-                while tl:
-                    time = datetime.strptime(tl.split()[0], '%Y%m%d.%H%M%S')
-                    times.append(time)
-
-                    # spectral output numpy storage
-                    spec_pts_t = np.ones((n_freq, n_dir, n_points))
-
-                    # read all points
-                    for p in range(n_points):
-
-                        # get factor
-                        f.readline()  # skip one line
-                        fac = float(f.readline())
-
-                        # read matrix
-                        for i in range(n_freq):
-                            spec_pts_t[i,:,p] = np.fromstring(f.readline(), sep=' ')
-
-                        # multiply spec by factor
-                        spec_pts_t[:,:,p] = spec_pts_t[:,:,p] * fac
-
-                    # append spectra
-                    specs.append(spec_pts_t)
-
-                    # read next time line (if any)
-                    tl = f.readline()
-
-                # file end, stack spec_pts for all times
-                spec_out = np.stack(specs, axis=-1)
-
-                # mount output to xarray.Dataset 
-                return xr.Dataset(
-                    {
-                        'lon_pts': (('point',), lon_points),
-                        'lat_pts': (('point',), lat_points),
-                        'spec': (('frequency', 'direction', 'point', 'time'), spec_out),
-                    },
-                    coords = {
-                        "frequency": freqs,
-                        "direction": dirs,
-                        "time": times,
-                    }
-                )
-
-        # extract output from selected mesh
-        p_dat = op.join(p_case, mesh.fn_output_spec)
-
-        # parse spec_output to xarray
-        xds_out = read_outpts_spec(p_dat)
-
-        # mesh ID
-        xds_out.attrs['mesh_ID'] = mesh.ID
-
-        return xds_out
-
 
 class SwanIO_STAT(SwanIO):
     'SWAN numerical model input/output - STATIONARY cases'
@@ -490,6 +338,9 @@ class SwanIO_STAT(SwanIO):
             mesh.fn_output,
         )
 
+        # TODO: add SPECOUT line
+        # SPECOUT 'COMPGRID' SPEC2D ABS 'outputspec_filename'
+
         # -- COMPUTE --
         t += 'TEST  1,0\n'
         t += 'COMPUTE \n'
@@ -546,7 +397,9 @@ class SwanIO_STAT(SwanIO):
             )
 
     def outmat2xr(self, p_mat):
-        # TODO: actualizar
+        'read output .mat file and returns xarray.Dataset'
+
+        # TODO: update
 
         # matlab dictionary
         dmat = loadmat(p_mat)
@@ -563,6 +416,21 @@ class SwanIO_STAT(SwanIO):
         )
 
         return xds_out
+
+    def output_points(self, p_case, mesh):
+        'read table_outpts_meshID.dat output file and returns xarray.Dataset'
+
+        # TODO def read output POINTS for STAT cases
+
+        return None
+
+    def read_outpts_spec(self, p_outpts_spec):
+        'Read output spectral data for swan SPECOUT text file'
+
+        # TODO: def read output SPEC for STAT cases
+        # (same as at SwanIO_NONSTAT but without TIME)
+
+        return None
 
 
 class SwanIO_NONSTAT(SwanIO):
@@ -626,7 +494,7 @@ class SwanIO_NONSTAT(SwanIO):
         for c, (u, v) in enumerate(zip(u10,v10)):
 
             # single point wind -> entire SWAN comp.grid wind
-            aux = np.ones((mxc, myc))
+            aux = np.ones((mxc, myc)).T
 
             # TODO: wind has to be rotated if alpc != 0
 
@@ -645,423 +513,50 @@ class SwanIO_NONSTAT(SwanIO):
         with open(save, 'w') as f:
             f.write(txt)
 
-    def make_vortex_files(self, p_case, case_id, mesh,
-                          storm_track):
+    def make_vortex_files(self, p_case, case_id, mesh, storm_track):
         '''
-        Generate event wind mesh files (swan compatible)
+        Generate event vortex wind mesh files (swan compatible)
 
-        uses wave_event storm path data over SWAN computational grid
-        needs SPHERICAL COORDINATES
-
-        mesh      - mesh (main or nested)
+        mesh        - mesh (main or nested)
         '''
-
-        # TODO: llevarlo a hywaves/swan/storms 
 
         code = 'wind_{0}'.format(mesh.ID)
 
-        # parameters
-        RE = 6378.135 * 1000            # Earth radius [m]
-        beta = 0.9                      # conversion factor of wind speed
-        rho_air = 1.15                  # air density
-        w = 2 * np.pi / 86184.2         # Earth's rotation velocity (rad/s)
-        pifac = np.arccos(-1) / 180     # pi/180
-        one2ten = 0.8928                # conversion from 1-min to 10-min
-
-        # wind variables
-        storm_vfx =  storm_track.vfx.values[:]
-        storm_vfy =  storm_track.vfy.values[:]
-        storm_lon =  storm_track.lon.values[:]
-        storm_lat =  storm_track.lat.values[:]
-        storm_p0 =   storm_track.p0.values[:]
-        storm_pn =   storm_track.pn.values[:]
-        times =      storm_track.index[:]
-        storm_vmax = storm_track.vmax.values[:]
-        storm_lat_orig = storm_lat
-
-        # select main mesh or nested mesh
-        mm = mesh
-
-        # comp. grid for generating vortex wind files
-        mxc = mm.cg['mxc']  # number mesh x
-        myc = mm.cg['myc']  # number mesh y
-
-        # comp. grid lat, lon limits 
-        lon0 = mm.cg['xpc']
-        lat0 = mm.cg['ypc']
-        lon1 = mm.cg['xpc'] + mm.cg['xlenc']
-        lat1 = mm.cg['ypc'] + mm.cg['ylenc']
-
-        # general meshgrid limits
-        lon00, lat00, lon01, lat01 = lon0, lat0, lon1, lat1
-
-        cg_lon = np.linspace(lon0, lon1, mxc)
-        cg_lat = np.linspace(lat0, lat1, myc)
-        mg_lon, mg_lat = np.meshgrid(cg_lon, cg_lat)
-
-        # wind output holder
-        hld_W = np.zeros((len(cg_lat), len(cg_lon), len(storm_p0)))
-        hld_D = np.zeros((len(cg_lat), len(cg_lon), len(storm_p0)))
-
-        # Correction when track is in south hemisphere for vortex generation 
-        if any (i < 0 for i in storm_lat) == True:
-                south_hemisphere = True
-        else:   south_hemisphere = False
+        # vortex model
+        xds_vortex = vortex_model(
+            storm_track,
+            mesh,
+            self.proj.params['coords_mode']
+        )
 
         # each time needs 2D (mesh) wind files (U,V)
         txt = ''
-        for c, (lo, la, la_orig, p0, pn, ut, vt, vmax) in enumerate(zip(
-            storm_lon, storm_lat, storm_lat_orig, storm_p0, storm_pn, 
-            storm_vfx, storm_vfy, storm_vmax)):
+        for c, t in enumerate(xds_vortex.time):
+            vortex_t = xds_vortex.isel(time=c)
 
-            # generate vortex field when storm is given
-            if all (np.isnan(i) for i in (lo, la, la_orig, p0, pn, ut, vt, vmax)) == False:
+            # get wind module and dir from vortex
+            W = vortex_t.W.values[:]
+            ang = np.deg2rad(270 - vortex_t.Dir.values[:])
 
-                # Wind model code (from ADCIRC, transcribed by Antonio Espejo) and 
-                # later slightly modified by Sara Ortega to include TCs at southern 
-                # hemisphere
-    
-                # get distance and angle between points 
-                arcl, _ = geo_distance_azimuth(mg_lat, mg_lon, la, lo)
-                r = arcl * np.pi / 180.0 * RE    # [m]
-    
-                # angle correction for southern hemisphere
-                if south_hemisphere:
-                    thet = np.arctan2((mg_lat-la)*pifac, -(mg_lon-lo)*pifac)
-                if not south_hemisphere:
-                    thet = np.arctan2((mg_lat-la)*pifac, (mg_lon-lo)*pifac)
-    
-                # ADCIRC MODEL 
-                CPD = (pn - p0) * 100    # central pressure deficit [Pa]
-                if CPD < 100: CPD = 100  # limit central pressure deficit
-    
-                # Wind model 
-                f = 2 * w * np.sin(abs(la)*np.pi/180)  # Coriolis
-    
-                # Substract the translational storm speed from the observed maximum 
-                # wind speed to avoid distortion in the Holland curve fit. 
-                # The translational speed will be added back later
-                vkt = vmax - np.sqrt(np.power(ut,2) + np.power(vt,2))   # [kt]
-    
-                # Convert wind speed from 10m altitude to wind speed at the top of 
-                # the atmospheric boundary layer
-                vgrad = vkt / beta    # [kt]
-                v = vgrad
-                vm = vgrad * 0.52     # [m/s]
-    
-                # Knaff et al. (2016) - Radius of maximum wind (RMW)
-                rm = 218.3784 - 1.2014*v + np.power(v/10.9844,2) - np.power(v/35.3052,3) - 145.509*np.cos(la*pifac)  # nautical mile
-                rm = rm * 1.852 * 1000   # from [n mi] to [m]
-                rn = rm / r              # []
-    
-                # Holland B parameter with upper and lower limits
-                B = rho_air * np.exp(1) * np.power(vm,2) / CPD
-                if B > 2.5: B = 2.5
-                elif B < 1: B = 1
-    
-                # Wind velocity at each node and time step   [m/s]
-                vg = np.sqrt(np.power(rn,B) * np.exp(1-np.power(rn,B)) * np.power(vm,2) + np.power(r,2)*np.power(f,2)/4) - r*f/2
-    
-                # Determine translation speed that should be added to final storm  
-                # wind speed. This is tapered to zero as the storm wind tapers to 
-                # zero toward the eye of the storm and at long distances from the storm
-                vtae = (abs(vg) / vgrad) * ut    # [m/s]
-                vtan = (abs(vg) / vgrad) * vt
-    
-                # Find the velocity components and convert from wind at the top of the 
-                # atmospheric boundary layer to wind at 10m elevation
-                if south_hemisphere:        hemisphere_sign = 1
-                if not south_hemisphere:    hemisphere_sign = -1
-                ve = hemisphere_sign * vg * beta * np.sin(thet)     # [m/s]
-                vn = vg * beta * np.cos(thet)
-    
-                # Convert from 1 minute averaged winds to 10 minute averaged winds
-                ve = ve * one2ten    # [m/s]
-                vn = vn * one2ten
-    
-                # Add the storm translation speed
-                vfe = ve + vtae      # [m/s]
-                vfn = vn + vtan
-    
-                # wind module
-                W = np.sqrt(np.power(vfe,2) + np.power(vfn,2))    # [m/s]
-    
-                # Surface pressure field
-                pr = p0 + (pn-p0) * np.exp(- np.power(rn,B))      # [mbar]
-                py, px = np.gradient(pr)
-                ang = np.arctan2(py, px) + np.sign(la_orig) * np.pi/2.0
-    
-                # Wind field
-                u_2d = W * np.cos(ang)    # m/s
-                v_2d = W * np.sin(ang)    # m/s
-                u_v_stack = np.vstack((u_2d, v_2d))
-                
-                # csv file 
-                save = op.join(p_case, '{0}_{1:06}.dat'.format(code, c))
-                np.savetxt(save, u_v_stack, fmt='%.2f')
-    
-                # wind list file
-                txt += '{0}_{1:06}.dat\n'.format(code, c)
-    
-                # hold wind data (m/s)
-                hld_W[:,:,c] = W
-                hld_D[:,:,c] =  270 - np.rad2deg(ang)  # direction (º clock. rel. north)
+            # 2D wind field
+            u_2d = W * np.cos(ang)  # m/s
+            v_2d = W * np.sin(ang)  # m/s
+            u_v_stack = np.vstack((u_2d, v_2d))
 
-            else: 
-                # generate null wind field when no storm (propagation time)
-                W = np.zeros((len(cg_lat), len(cg_lon)))
-                u_2d = W    # m/s
-                v_2d = W    # m/s
-                u_v_stack = np.vstack((u_2d, v_2d))
+            # csv file 
+            save = op.join(p_case, '{0}_{1:06}.dat'.format(code, c))
+            np.savetxt(save, u_v_stack, fmt='%.2f')
 
-                # csv file 
-                save = op.join(p_case, '{0}_{1:06}.dat'.format(code, c))
-                np.savetxt(save, u_v_stack, fmt='%.2f')
-    
-                # wind list file
-                txt += '{0}_{1:06}.dat\n'.format(code, c)
-    
-                # hold wind data (m/s)
-                hld_W[:,:,c] = 0
-                hld_D[:,:,c] = 0  # direction (º clock. rel. north)
+            # wind list file
+            txt += '{0}_{1:06}.dat\n'.format(code, c)
 
         # winds file path
         save = op.join(p_case, 'series_{0}.dat'.format(code))
         with open(save, 'w') as f:
             f.write(txt)
 
-        # aux. save vortex wind fields
-        if south_hemisphere == True:
-            cg_lon = np.linspace(lon00, lon01, mxc)
-            cg_lat = np.linspace(lat00, lat01, myc)
-
-        # aux. save vortex wind fields
+        # vortex .nc file
         p_vortex = op.join(p_case, 'vortex_{0}.nc'.format(code))
-        xds_vortex = xr.Dataset(
-            {
-                'W': (('lat','lon','time'), hld_W, {'units':'m/s'}),
-                'Dir': (('lat','lon','time'), hld_D, {'units':'º'})
-            },
-            coords={
-                'lat' : cg_lat,
-                'lon' : cg_lon,
-                'time' : times,
-            }
-        )
-        xds_vortex.attrs['xlabel'] = 'Longitude (º)'
-        xds_vortex.attrs['ylabel'] = 'Latitude (º)'
-
-        xds_vortex.to_netcdf(p_vortex)
-
-    # for SHyTCWaves, cartesian coordinates + open ocean
-    def make_vortex_files_NEW(self, p_case, case_id, mesh, storm_track):
-        '''
-        Generate event wind mesh files (swan compatible)
-
-        uses wave_event storm path data over SWAN computational grid
-        needs SPHERICAL COORDINATES
-
-        mesh      - mesh (main or nested)
-        '''
-
-        # TODO: llevarlo a hywaves/swan/storms 
-
-        code = 'wind_{0}'.format(mesh.ID)
-
-        # parameters
-        RE = 6378.135 * 1000            # Earth radius [m]
-        beta = 0.9                      # conversion factor of wind speed
-        rho_air = 1.15                  # air density
-        w = 2 * np.pi / 86184.2         # Earth's rotation velocity (rad/s)
-        pifac = np.arccos(-1) / 180     # pi/180
-        one2ten = 0.8928                # conversion from 1-min to 10-min avg
-
-        # storm variables
-        storm_vfx =  storm_track.vfx.values[:]
-        storm_vfy =  storm_track.vfy.values[:]
-        storm_x =  storm_track.x.values[:]
-        storm_y =  storm_track.y.values[:]
-        storm_lat =  storm_track.latitude.values[:]
-        storm_p0 =   storm_track.p0.values[:]
-        storm_pn =   storm_track.pn.values[:]
-        times =      storm_track.index[:]
-        storm_vmax = storm_track.vmax.values[:]
-        storm_rmw = storm_track.rmw.values[:]
-
-        # select main mesh or nested mesh
-        mm = mesh
-
-        # comp. grid for generating vortex wind files
-        mxc = mm.cg['mxc']  # number mesh x
-        myc = mm.cg['myc']  # number mesh y
-
-        # comp. grid lat, lon limits 
-        lon0 = mm.cg['xpc']
-        lat0 = mm.cg['ypc']
-        lon1 = mm.cg['xpc'] + mm.cg['xlenc']
-        lat1 = mm.cg['ypc'] + mm.cg['ylenc']
-
-        # general meshgrid limits
-        lon00, lat00, lon01, lat01 = lon0, lat0, lon1, lat1
-
-        cg_lon = np.linspace(lon0, lon1, mxc)
-        cg_lat = np.linspace(lat0, lat1, myc)
-        mg_lon, mg_lat = np.meshgrid(cg_lon, cg_lat)
-
-        # wind output holder
-        hld_W = np.zeros((len(cg_lat), len(cg_lon), len(storm_p0)))
-        hld_D = np.zeros((len(cg_lat), len(cg_lon), len(storm_p0)))
-
-        # Correction when track is in south hemisphere for vortex generation 
-        if any (i < 0 for i in storm_lat) == True:
-                south_hemisphere = True
-        else:   south_hemisphere = False
-
-        # each time needs 2D (mesh) wind files (U,V)
-        txt = ''
-        for c, (lo, la, la_orig, p0, pn, ut, vt, vmax, rmw) in enumerate(zip(
-            storm_x, storm_y, storm_lat, storm_p0, storm_pn, 
-            storm_vfx, storm_vfy, storm_vmax, storm_rmw)):
-
-            # generate vortex field when storm is given
-            if all (np.isnan(i) for i in (lo, la, la_orig, p0, pn, ut, vt, vmax)) == False:
-
-                # Wind model code (from ADCIRC, transcribed by Antonio Espejo) and 
-                # later slightly modified by Sara Ortega to include TCs at southern 
-                # hemisphere
-    
-                # get distance and angle between points 
-                coords_mode = self.proj.params['coords_mode']
-                if coords_mode == 'SPHERICAL':
-                    arcl, _ = geo_distance_azimuth(mg_lat, mg_lon, la, lo)
-                    r = arcl * np.pi / 180.0 * RE    # [m]
-                if coords_mode == 'CARTESIAN':
-                    r = geo_distance_cartesian(mg_lat, mg_lon, la, lo)    # [m]
-    
-                # angle correction for southern hemisphere
-                if south_hemisphere:        thet = np.arctan2((mg_lat-la)*pifac, -(mg_lon-lo)*pifac)
-                if not south_hemisphere:    thet = np.arctan2((mg_lat-la)*pifac, (mg_lon-lo)*pifac)
-    
-                # ADCIRC MODEL 
-                CPD = (pn - p0) * 100    # central pressure deficit [Pa]
-                if CPD < 100: CPD = 100  # limit central pressure deficit
-    
-                # Wind model 
-                f = 2 * w * np.sin(abs(la_orig)*np.pi/180)  # Coriolis
-    
-                # Substract the translational storm speed from the observed maximum 
-                # wind speed to avoid distortion in the Holland curve fit. 
-                # The translational speed will be added back later
-                vkt = vmax - np.sqrt(np.power(ut,2) + np.power(vt,2))   # [kt]
-    
-                # Convert wind speed from 10m altitude to wind speed at the top of 
-                # the atmospheric boundary layer
-                vgrad = vkt / beta    # [kt]
-                v = vgrad
-                vm = vgrad * 0.52     # [m/s]
-    
-                # Knaff et al. (2016) - Radius of maximum wind (RMW)
-                rm = 218.3784 - 1.2014*v + np.power(v/10.9844,2) - np.power(v/35.3052,3) - 145.509*np.cos(la_orig*pifac)  # nautical mile
-                rm = rm * 1.852 * 1000   # from [n mi] to [m]
-                rn = rm / r              # []
-    
-                # Holland B parameter with upper and lower limits
-                B = rho_air * np.exp(1) * np.power(vm,2) / CPD
-                if B > 2.5: B = 2.5
-                elif B < 1: B = 1
-    
-                # Wind velocity at each node and time step   [m/s]
-                vg = np.sqrt(np.power(rn,B) * np.exp(1-np.power(rn,B)) * np.power(vm,2) + np.power(r,2)*np.power(f,2)/4) - r*f/2
-    
-                # Determine translation speed that should be added to final storm  
-                # wind speed. This is tapered to zero as the storm wind tapers to 
-                # zero toward the eye of the storm and at long distances from the storm
-                vtae = (abs(vg) / vgrad) * ut    # [m/s]
-                vtan = (abs(vg) / vgrad) * vt
-    
-                # Find the velocity components and convert from wind at the top of the 
-                # atmospheric boundary layer to wind at 10m elevation
-                if south_hemisphere:        hemisphere_sign = 1
-                if not south_hemisphere:    hemisphere_sign = -1
-                ve = hemisphere_sign * vg * beta * np.sin(thet)     # [m/s]
-                vn = vg * beta * np.cos(thet)
-    
-                # Convert from 1 minute averaged winds to 10 minute averaged winds
-                ve = ve * one2ten    # [m/s]
-                vn = vn * one2ten
-    
-                # Add the storm translation speed
-                vfe = ve + vtae      # [m/s]
-                vfn = vn + vtan
-    
-                # wind module
-                W = np.sqrt(np.power(vfe,2) + np.power(vfn,2))    # [m/s]
-    
-                # Surface pressure field
-                pr = p0 + (pn-p0) * np.exp(- np.power(rn,B))      # [mbar]
-                py, px = np.gradient(pr)
-                ang = np.arctan2(py, px) + np.sign(la_orig) * np.pi/2.0
-    
-                # Wind field
-                u_2d = W * np.cos(ang)    # m/s
-                v_2d = W * np.sin(ang)    # m/s
-                u_v_stack = np.vstack((u_2d, v_2d))
-    
-                # csv file 
-                save = op.join(p_case, '{0}_{1:06}.dat'.format(code, c))
-                np.savetxt(save, u_v_stack, fmt='%.2f')
-    
-                # wind list file
-                txt += '{0}_{1:06}.dat\n'.format(code, c)
-    
-                # hold wind data (m/s)
-                hld_W[:,:,c] = W
-                hld_D[:,:,c] =  270 - np.rad2deg(ang)  # direction (º clock. rel. north)
-
-            else: 
-                # generate null wind field when no storm (propagation time)
-                W = np.zeros((len(cg_lat), len(cg_lon)))
-                u_2d = W    # m/s
-                v_2d = W    # m/s
-                u_v_stack = np.vstack((u_2d, v_2d))
-
-                # csv file 
-                save = op.join(p_case, '{0}_{1:06}.dat'.format(code, c))
-                np.savetxt(save, u_v_stack, fmt='%.2f')
-    
-                # wind list file
-                txt += '{0}_{1:06}.dat\n'.format(code, c)
-    
-                # hold wind data (m/s)
-                hld_W[:,:,c] = 0
-                hld_D[:,:,c] = 0  # direction (º clock. rel. north)
-
-        # winds file path
-        save = op.join(p_case, 'series_{0}.dat'.format(code))
-        with open(save, 'w') as f:
-            f.write(txt)
-
-        # aux. save vortex wind fields
-        if south_hemisphere == True:
-            cg_lon = np.linspace(lon00, lon01, mxc)
-            cg_lat = np.linspace(lat00, lat01, myc)
-
-        # aux. save vortex wind fields
-        p_vortex = op.join(p_case, 'vortex_{0}.nc'.format(code))
-        xds_vortex = xr.Dataset(
-            {
-                'W': (('lat','lon','time'), hld_W, {'units':'m/s'}),
-                'Dir': (('lat','lon','time'), hld_D, {'units':'º'})
-            },
-            coords={
-                'lat' : cg_lat,
-                'lon' : cg_lon,
-                'time' : times,
-            }
-        )
-        xds_vortex.attrs['xlabel'] = 'Longitude (º)'
-        xds_vortex.attrs['ylabel'] = 'Latitude (º)'
-
         xds_vortex.to_netcdf(p_vortex)
 
     def make_level_files(self, p_case, wave_event, mesh):
@@ -1099,6 +594,36 @@ class SwanIO_NONSTAT(SwanIO):
         save = op.join(p_case, 'series_{0}.dat'.format(code))
         with open(save, 'w') as f:
             f.write(txt)
+
+    def calculate_t0_out(self, t0_iso):
+        '''
+        gets initial output storage for specout, block and table output modes
+
+        t0_iso - initial computation time (SWAN iso format)
+        '''
+
+        # default output storage initial time (case start)
+        t0_out_spec = t0_iso
+        t0_out_block = t0_iso
+        t0_out_table = t0_iso
+
+        # custom output storage initial time
+        swan_iso_fmt = '%Y%m%d.%H%M'
+        t0_dt = datetime.strptime(t0_iso, swan_iso_fmt)
+
+        if self.proj.params['output_time_ini_specout']:
+            tdt = t0_dt + timedelta(hours=self.proj.params['output_time_ini_specout'])
+            t0_out_spec = tdt.strftime(swan_iso_fmt)
+
+        if self.proj.params['output_time_ini_block']:
+            tdt = t0_dt + timedelta(hours=self.proj.params['output_time_ini_block'])
+            t0_out_block = tdt.strftime(swan_iso_fmt)
+
+        if self.proj.params['output_time_ini_table']:
+            tdt = t0_dt + timedelta(hours=self.proj.params['output_time_ini_table'])
+            t0_out_table = tdt.strftime(swan_iso_fmt)
+
+        return t0_out_spec, t0_out_block, t0_out_table
 
     def make_input(self, p_file, id_run,
                    mesh,
@@ -1144,14 +669,16 @@ class SwanIO_NONSTAT(SwanIO):
         t0_iso = time[0]   # initial time (SWAN ISOFORMAT)
         t1_iso = time[-1]  # end time (SWAN ISOFORMAT)
 
+        # output storage initial times
+        t0_out_spec, t0_out_block, t0_out_table = self.calculate_t0_out(t0_iso)
+
         # level series files
         if make_levels:
             t += swn_inp_levels_nonstat(self.proj, mesh, t0_iso, t1_iso)
 
         # wind series files
         if make_winds:
-            t += swn_inp_winds_nonstat(self.proj, mesh, t0_iso, t1_iso,
-                                       wind_deltinp)
+            t += swn_inp_winds_nonstat(self.proj, mesh, t0_iso, t1_iso, wind_deltinp)
 
         # -- BOUNDARY WAVES CONDITIONS --
 
@@ -1176,40 +703,39 @@ class SwanIO_NONSTAT(SwanIO):
 
         # output variables
         out_vars = ' '.join(self.proj.params['output_variables'])
-        out_vars_table = self.proj.params['output_variables']
-        out_vars_table = [x for x in out_vars_table if x not in ['PTHSIGN','PTRTP','PTDIR','PTDSPR','PTWFRAC','PTWLEN','PTSTEEP']]
-        out_vars_table = ' '.join(out_vars_table)
 
         # -- OUTPUT: BLOCK  -- 
         dt_out = self.proj.params['output_deltt']
-        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 {1} {2} {3}\n$\n".format(
-            mesh.fn_output, out_vars, t0_iso, dt_out)
-        # wave spectra 
+        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 {1} OUT {2} {3}\n$\n".format(
+            mesh.fn_output, out_vars, t0_out_block, dt_out)
+
+        # wave spectra at output computational grid 
         if self.proj.params['output_spec']:
             dt_spec_out = self.proj.params['output_spec_deltt']
             t += "SPECOUT 'COMPGRID' SPEC2D ABS '{0}' OUT {1} {2}\n".format(
-                mesh.fn_output_spec, t0_iso, dt_spec_out)
+                mesh.fn_output_spec, t0_out_spec, dt_spec_out)
         t += "$\n"
 
         # -- OUTPUT: POINTS  -- 
         x_out = self.proj.params['output_points_x']
         y_out = self.proj.params['output_points_y']
+        out_vars_table = ' '.join(self.proj.params['output_variables_points'])
 
         if not x_out or not y_out:
             pass
         else:
             t += "POINTS 'outpts' FILE 'points_out.dat'\n"
-            t += "TABLE 'outpts' NOHEAD '{0}' {1} {2} {3}\n".format(
-                mesh.fn_output_points, out_vars_table, t0_iso, dt_out)
-            # wave spectra
+            t += "TABLE 'outpts' NOHEAD '{0}' {1} OUT {2} {3}\n".format(
+                mesh.fn_output_points, out_vars_table, t0_out_table, dt_out)
+
+            # wave spectra at output points
             if self.proj.params['output_points_spec']:
                 t += "SPECOUT 'outpts' SPEC2D ABS '{0}' OUT {1} {2}\n".format(
-                    mesh.fn_output_points_spec, t0_iso, dt_out)
+                    mesh.fn_output_points_spec, t0_out_table, dt_out)
             t += "$\n"
 
         # -- COMPUTE --
         t += 'TEST  1,0\n'
-        # TODO add custom initial time for storage
         t += 'COMPUTE NONSTAT {0} {1} {2}\n'.format(t0_iso, compute_deltc, t1_iso)
         t += 'STOP\n$\n'
 
@@ -1330,6 +856,9 @@ class SwanIO_NONSTAT(SwanIO):
 
         return xds
 
+
+    # TODO: revisar coordenadas de los archivos output (X,Y - lon, lat)
+
     def outmat2xr(self, p_mat):
         'read output .mat file and returns xarray.Dataset'
 
@@ -1342,7 +871,7 @@ class SwanIO_NONSTAT(SwanIO):
         if 'Windv' in ks: ks.remove('Windv'); ks.append('Windv_x'); ks.append('Windv_y')
 
         # get dates from one key
-        hsfs = sorted([x for x in dmat.keys() if ks[0] in x])
+        hsfs = sorted([x for x in dmat.keys() if ks[0] == x.split('_')[0]])
         dates_str = ['_'.join(x.split('_')[1:]) for x in hsfs]
         dates = [datetime.strptime(s,'%Y%m%d_%H%M%S') for s in dates_str]
 
@@ -1351,59 +880,41 @@ class SwanIO_NONSTAT(SwanIO):
         for ix_t, ds in enumerate(dates_str):
             xds_t = xr.Dataset()
             for vn in ks:
-                if vn not in partit_vars:
-                    xds_t[vn] = (('Y','X',), dmat['{0}_{1}'.format(vn, ds)])
-            # partition variables
-            if 'HsPT01' in ks:
-                hs_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
-                for i,cpt in enumerate(partit_vns['PTSIGN']):
-                    hs_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
-                xds_t['Hs_part'] = (('partit','Y','X',), hs_pt)
-                
-            if 'TpPT01' in ks:
-                tp_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
-                for i,cpt in enumerate(partit_vns['PTRTP']):
-                    tp_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
-                xds_t['Tp_part'] = (('partit','Y','X',), tp_pt)
-
-            if 'DrPT01' in ks:
-                dr_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
-                for i,cpt in enumerate(partit_vns['PTDIR']):
-                    dr_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
-                xds_t['Dir_part'] = (('partit','Y','X',), dr_pt)
-
-            if 'DsPT01' in ks:
-                ds_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
-                for i,cpt in enumerate(partit_vns['PTDSPR']):
-                    ds_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
-                xds_t['Dspr_part'] = (('partit','Y','X',), ds_pt)
-
-            if 'WfPT01' in ks:
-                wf_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
-                for i,cpt in enumerate(partit_vns['PTWFRAC']):
-                    wf_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
-                xds_t['Wfrac_part'] = (('partit','Y','X',), wf_pt)
-
-            if 'WlPT01' in ks:
-                wl_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
-                for i,cpt in enumerate(partit_vns['PTWFRAC']):
-                    wl_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
-                xds_t['Wlen_part'] = (('partit','Y','X',), wl_pt)
-
-            if 'StPT01' in ks:
-                st_pt = np.zeros((10, xds_t[vn].shape[0], xds_t[vn].shape[1]))
-                for i,cpt in enumerate(partit_vns['PTWFRAC']):
-                    st_pt[i,:,:] = dmat['{0}_{1}'.format(cpt, ds)]
-                xds_t['Steep_part'] = (('partit','Y','X',), st_pt)
-
+                xds_t[vn] = (('Y','X',), dmat['{0}_{1}'.format(vn, ds)])
             l_times.append(xds_t)
 
         # join at times dim
         xds_out = xr.concat(l_times, dim='time')
         xds_out = xds_out.assign_coords(time=dates)
 
+        # join partitions variables (if any)
+        xds_out = self.fix_partition_vars(xds_out)
+
         # add variable metadata (if available)
         xds_out = self.add_metadata(xds_out, meta_out_mat)
+
+        return xds_out
+
+    def fix_partition_vars(self, xds_out):
+        'read partitions variables from output .mat file and returns xarray.Dataset'
+
+        # partition variables keys
+        partition_keys = ['HsPT', 'TpPT', 'DrPT', 'DsPT', 'WfPT', 'WlPT', 'StPT']
+
+        # output variables
+        vns = xds_out.variables
+
+        for k in partition_keys:
+            vps = sorted([v for v in vns if v.startswith(k)])
+
+            # skip if no partition key present
+            if vps == []: continue
+
+            cc = xr.concat([xds_out[v] for v in vps], 'partition',)
+
+            # drop splitted partition vars and add full partition var
+            for v in vps: xds_out = xds_out.drop_vars(v)
+            xds_out[k] = cc
 
         return xds_out
 
@@ -1496,77 +1007,81 @@ class SwanIO_NONSTAT(SwanIO):
 
         return xds_out
 
-    def output_points_spec(self, p_case, mesh):
-        'read spec_outpts_meshID.dat output file and returns xarray.Dataset'
+    def read_outpts_spec(self, p_outpts_spec):
+        'Read output spectral data for swan SPECOUT text file'
 
-        def read_outpts_spec(p_outpts_spec):
-            'Read output spectral data for swan SPECOUT text file'
+        # TODO puede romper por memoria, usar la alternativa netcdf4
 
-            with open(p_outpts_spec) as f:
+        with open(p_outpts_spec) as f:
 
-                # skip header
-                for i in range(3): f.readline()
+            # skip header
+            for i in range(3): f.readline()
 
-                # skip TIME lines
-                for i in range(2): f.readline()
+            # skip TIME lines
+            for i in range(2): f.readline()
 
-                # skip LONLAT line
-                f.readline()
+            # skip LONLAT line
+            f.readline()
 
-                # get number of points and coordinates
-                n_points = int(f.readline().split()[0])
-                lon_points, lat_points = [], []
-                for i in range(n_points):
-                    lonlat = f.readline()
-                    lon_points.append(float(lonlat.split()[0]))
-                    lat_points.append(float(lonlat.split()[1]))
+            # get number of points and coordinates
+            n_points = int(f.readline().split()[0])
+            lon_points, lat_points = [], []
+            for i in range(n_points):
+                lonlat = f.readline()
+                lon_points.append(float(lonlat.split()[0]))
+                lat_points.append(float(lonlat.split()[1]))
 
-                # skip AFREQ line
-                f.readline()
+            # skip AFREQ line
+            f.readline()
 
-                # get FREQs
-                n_freq = int(f.readline().split()[0])
-                freqs = []
-                for i in range(n_freq):
-                    freqs.append(float(f.readline()))
+            # get FREQs
+            n_freq = int(f.readline().split()[0])
+            freqs = []
+            for i in range(n_freq):
+                freqs.append(float(f.readline()))
 
-                # skip NDIR line
-                f.readline()
+            # skip NDIR line
+            f.readline()
 
-                # get DIRs
-                n_dir = int(f.readline().split()[0])
-                dirs = []
-                for i in range(n_dir):
-                    dirs.append(float(f.readline()))
+            # get DIRs
+            n_dir = int(f.readline().split()[0])
+            dirs = []
+            for i in range(n_dir):
+                dirs.append(float(f.readline()))
 
-                # skip QUANT lines
-                for i in range(2): f.readline()
+            # skip QUANT lines
+            for i in range(2): f.readline()
 
-                # skip vadens lines
-                for i in range(2): f.readline()
+            # skip vadens lines
+            for i in range(2): f.readline()
 
-                # get exception value
-                ex = float(f.readline().split()[0])
+            # get exception value
+            ex = float(f.readline().split()[0])
 
-                # start reading spectral output data
-                times = []
-                specs = []
+            # start reading spectral output data
+            times = []
+            specs = []
 
-                # first time line
-                tl = f.readline()
+            # first time line
+            tl = f.readline()
 
-                while tl:
-                    time = datetime.strptime(tl.split()[0], '%Y%m%d.%H%M%S')
-                    times.append(time)
+            while tl:
+                time = datetime.strptime(tl.split()[0], '%Y%m%d.%H%M%S')
+                times.append(time)
 
-                    # spectral output numpy storage
-                    spec_pts_t = np.ones((n_freq, n_dir, n_points))
+                # spectral output numpy storage
+                spec_pts_t = np.ones((n_freq, n_dir, n_points)) * np.nan
 
-                    # read all points
-                    for p in range(n_points):
+                # read all points
+                for p in range(n_points):
+
+                    # check we have result
+                    fac_line = f.readline()
+
+                    # read spectra values 
+                    if 'FACTOR' in fac_line:
 
                         # get factor
-                        f.readline()  # skip one line
                         fac = float(f.readline())
 
                         # read matrix
@@ -1576,34 +1091,53 @@ class SwanIO_NONSTAT(SwanIO):
                         # multiply spec by factor
                         spec_pts_t[:,:,p] = spec_pts_t[:,:,p] * fac
 
-                    # append spectra
-                    specs.append(spec_pts_t)
+                # append spectra
+                specs.append(spec_pts_t)
 
-                    # read next time line (if any)
-                    tl = f.readline()
+                # read next time line (if any)
+                tl = f.readline()
 
-                # file end, stack spec_pts for all times
-                spec_out = np.stack(specs, axis=-1)
+            # file end, stack spec_pts for all times
+            spec_out = np.stack(specs, axis=-1)
 
-                # mount output to xarray.Dataset 
-                return xr.Dataset(
-                    {
-                        'lon_pts': (('point',), lon_points),
-                        'lat_pts': (('point',), lat_points),
-                        'spec': (('frequency', 'direction', 'point', 'time'), spec_out),
-                    },
-                    coords = {
-                        "frequency": freqs,
-                        "direction": dirs,
-                        "time": times,
-                    }
-                )
+            # mount output to xarray.Dataset 
+            return xr.Dataset(
+                {
+                    'lon_pts': (('point',), lon_points),
+                    'lat_pts': (('point',), lat_points),
+                    'spec': (('frequency', 'direction', 'point', 'time'), spec_out),
+                },
+                coords = {
+                    "frequency": freqs,
+                    "direction": dirs,
+                    "time": times,
+                }
+            )
+
+    def output_points_spec(self, p_case, mesh):
+        'read spec_outpts_meshID.dat output file and returns xarray.Dataset'
 
         # extract output from selected mesh
         p_dat = op.join(p_case, mesh.fn_output_points_spec)
 
         # parse spec_output to xarray
-        xds_out = read_outpts_spec(p_dat)
+        xds_out = self.read_outpts_spec(p_dat)
+
+        # mesh ID
+        xds_out.attrs['mesh_ID'] = mesh.ID
+
+        return xds_out
+
+    def output_case_spec(self, p_case, mesh):
+        'read spec_compgrid_meshID.dat output file and returns xarray.Dataset'
+
+        # TODO: cuando SwanIO_STAT() tenga su "read_outpts_spec" mover esta funcion a SwanIO()
+
+        # extract output from selected mesh
+        p_dat = op.join(p_case, mesh.fn_output_spec)
+
+        # parse spec_output to xarray
+        xds_out = self.read_outpts_spec(p_dat)
 
         # mesh ID
         xds_out.attrs['mesh_ID'] = mesh.ID
