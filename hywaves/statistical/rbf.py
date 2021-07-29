@@ -108,7 +108,8 @@ def RBF_Interpolation(rbf_constant, rbf_coeff, nodes, x):
 def RBF_Reconstruction(
     subset, ix_scalar_subset, ix_directional_subset,
     target, ix_scalar_target, ix_directional_target,
-    dataset):
+    dataset,
+    sigma_min=0.1, sigma_max=0.7):
     '''
     Radial Basis Function (Gaussian) interpolator.
 
@@ -119,12 +120,8 @@ def RBF_Reconstruction(
     ix_scalar_target      - scalar columns indexes for target
     ix_directional_target - directional columns indexes for target
     dataset - dataset used for RBF interpolation (dim_input)
+    sigma_min, sigma_max  - sigma optimization bounds
     '''
-
-    # parameters
-    sigma_min = 0.1#0.16 #0.1
-    sigma_max = 0.7#0.9 #0.7
-    print('sigma_min: ', sigma_min, 'sigma_max: ', sigma_max)
 
     # normalize subset and dataset
     dataset_norm, mins, maxs = Normalize(
@@ -157,7 +154,7 @@ def RBF_Reconstruction(
         t3 = time.time()  # interpolation time
 
         print(
-            'ix_scalar: {0},  optimization: {1:.2f} | interpolation: {2:.2f}, sigma_opt: {3}'.format(
+            'ix_scalar: {0},  optimization: {1:.2f} | interpolation: {2:.2f}, sigma_opt: {3:.2f}'.format(
                 ix, t1-t0, t3-t2, opt_sigma)
         )
 
@@ -202,7 +199,7 @@ def RBF_Reconstruction(
         output[:,ix] = out
 
         print(
-            'ix_directional: {0},  optimization: {1:.2f} | interpolation: {2:.2f}, {3}, {4}'.format(
+            'ix_directional: {0},  optimization: {1:.2f} | interpolation: {2:.2f}, sigma_opt: x {3:.2f}, y {4:.2f}'.format(
                 ix, t1-t0, t3-t2, opt_sigma_x, opt_sigma_y)
         )
 

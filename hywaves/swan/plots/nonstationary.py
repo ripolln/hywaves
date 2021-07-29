@@ -88,6 +88,19 @@ def add_wind_module_dir(xds):
 
     return(xds)
 
+def storm_title(storm_track):
+    'returns title for storm_track cases'
+
+    t1 = 'Pmin: {0:.2f} hPa'.format(np.min(storm_track.p0))
+    t2 = 'Vmean: {0:.2f} km/h'.format(np.mean(storm_track.vf)*1.852)
+
+    ttl_st = '\n{0} / {1}'.format(t1, t2)
+
+    if 'move' in storm_track:
+        ttl_st += ' / Gamma: {0:.2f}º'.format(storm_track.move[0])
+
+    return ttl_st
+
 
 # axes generation
 
@@ -116,7 +129,7 @@ def axplot_quiver(ax, XX, YY, vv, vd):
     if scale <0:    scale *= -1
 
     x_q, y_q, var_q, u, v = calc_quiver(XX, YY, vv, vd, size=size)
-    
+
     ax.quiver(
         x_q, y_q, -u*var_q, -v*var_q,
         width=0.0015,
@@ -238,6 +251,9 @@ def plot_project_site(swan_proj, vmin=None, vmax=None, zoom=False, shoreline=Fal
     mesh = swan_proj.mesh_main
     XX, YY, depth = mesh2np(mesh)
 
+    if vmin == None: vmin = np.min(depth)
+    if vmax == None: vmax = np.max(depth)
+
     pm = axplot_var_map(
         axs, XX, YY, -depth, vmin=vmin, vmax=vmax,#depth,
         cmap = bathy_cmap(np.abs(vmin), np.abs(vmax)),#'gist_earth_r',
@@ -319,8 +335,10 @@ def plot_case_input(swan_proj, storm_track_list=[], case_number=0):
         axplot_storm_track(axs, st)
 
         # add text to title
-        ttl_st = '\nPmin: {0:.2f} hPa / Vmean: {1:.2f} km/h / Gamma: {2:.2f}º'.format(
-            np.min(st.p0), np.mean(st.vf)*1.852, st.move[0])
+        ttl_st = storm_title(st)
+
+    else:
+        ttl_st = ''
 
     # title
     axs.set_title(
@@ -371,8 +389,12 @@ def plot_case_vortex_input(swan_wrap, storm_track_list=[], t_num=10, case_number
     xds_v = xds_vortex.isel(time=t_num)
 
     # get mesh data from vortex dataset
-    X = xds_v['lon'].values[:]
-    Y = xds_v['lat'].values[:]
+    coords_mode = swan_proj.params['coords_mode']
+    if coords_mode == 'SPHERICAL':      xa, ya = 'lon', 'lat'
+    else:                               xa, ya = 'X', 'Y'
+
+    X = xds_v[xa].values[:]
+    Y = xds_v[ya].values[:]
 
     # vortex wind and dir
     xds_v_wnd = xds_v['W']
@@ -477,8 +499,10 @@ def plot_case_vortex_grafiti(swan_wrap, storm_track_list=[], case_number=0,
 
     # get mesh data from output dataset
     coords_mode = swan_proj.params['coords_mode']
-    if coords_mode == 'SPHERICAL':      xa, ya = 'lon', 'lat'
-    else:                               xa, ya = 'X', 'Y'
+    if coords_mode == 'SPHERICAL':
+        xa, ya = 'lon', 'lat'
+    else:
+        xa, ya = 'X', 'Y'
     X = xds_var[xa].values[:]
     Y = xds_var[ya].values[:]
 
@@ -571,10 +595,12 @@ def plot_matrix_input(swan_proj, storm_track_list=[],
             axplot_storm_track(ax, st)
 
             # add text to title
-            ttl_st = '\nPmin: {0:.2f} hPa / Vmean: {1:.2f} km/h / Gamma: {2:.2f}º'.format(
-                np.min(st.p0), np.mean(st.vf)*1.852, st.move[0])
-            ax.text(0.1, 0.02, '{0}'.format(ttl_st), color='k', fontsize=18,
-                    transform=ax.transAxes)
+            ttl_st = storm_title(st)
+            ax.text(
+                0.1, 0.02, '{0}'.format(ttl_st),
+                color='k', fontsize=18,
+                transform=ax.transAxes
+            )
 
         # number
         ax.text(0.02, 0.02, case_i, color='fuchsia', fontweight='bold', fontsize=20,
@@ -641,8 +667,10 @@ def plot_case_output(
 
     # get mesh data from output dataset
     coords_mode = swan_proj.params['coords_mode']
-    if coords_mode == 'SPHERICAL':      xa, ya = 'lon', 'lat'
-    else:                               xa, ya = 'X', 'Y'
+    if coords_mode == 'SPHERICAL':
+        xa, ya = 'lon', 'lat'
+    else:
+        xa, ya = 'X', 'Y'
     X = xds_var[xa].values[:]
     Y = xds_var[ya].values[:]
 
@@ -672,7 +700,7 @@ def plot_case_output(
 
     # plot quiver
     if quiver:
-        axplot_quiver(axs, X, Y, xds_var.values[:], xds_v.Dir.values[:])            
+        axplot_quiver(axs, X, Y, xds_var.values[:], xds_v.Dir.values[:])
 
     # plot shoreline
     shore = swan_proj.shore

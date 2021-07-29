@@ -3,6 +3,7 @@
 
 import os
 import os.path as op
+import shutil
 import subprocess as sp
 import sys
 
@@ -68,16 +69,28 @@ d_params_template = {
 
     # OUTPUT
     'output_deltt': None,      # output delta time '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
-    'output_variables': ['HSIGN', 'DIR', 'PDIR', 'TM02', 'TPS', 'RTP', 'FSPR', 'DSPR',
-                         'DEPTH', 'WATLEV', 'WIND', 'OUT'],    # output varibles to be stored
-    'output_time_ini': None,      # custom initial datetime for storage (optional)
+    'output_variables': [
+        'HSIGN', 'DIR', 'PDIR', 'TM02',
+        'TPS', 'RTP', 'FSPR', 'DSPR',
+        'DEPTH', 'WATLEV', 'WIND'],    # output varibles (compgrid) to be stored
+
+    # OUTPUT storage custom initial time (delta hours from case start)
+    'output_time_ini_specout': None,
+    'output_time_ini_block': None,
+    'output_time_ini_table': None,
+
     # x,y output points (optional)
     'output_points_x': [],
     'output_points_y': [],
+    'output_variables_points': [
+        'HSIGN', 'DIR', 'PDIR', 'TM02',
+        'TPS', 'RTP', 'FSPR', 'DSPR',
+        'DEPTH', 'WATLEV', 'WIND'],    # output varibles (tablepoints) to be stored
+
     # output spectra (optional)
     'output_spec_deltt': None,    # output delta time '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
-    'output_spec': False,         # activateS COMPGRID for storage
-    'output_points_spec': False,  # activates OUTPTS for storage
+    'output_spec': False,         # activates COMPGRID for spectra storage
+    'output_points_spec': False,  # activates OUTPTS for spectra storage
 }
 
 
@@ -231,6 +244,16 @@ class SwanWrap(object):
     def run_cases(self):
         'run all cases inside project "cases" folder'
 
+        def save_swan_prints(p_run, mesh_id):
+            'copy swan Errfile, norm_end and PRINT files with mesh name'
+
+            for fk in ['Errfile', 'norm_end', 'PRINT']:
+                if op.isfile(op.join(p_run, fk)):
+                    shutil.copy(
+                        op.join(p_run, fk),
+                        op.join(p_run, '{0}_{1}'.format(fk, mesh_id))
+                    )
+
         # TODO: improve log / check execution ending status
 
         # get sorted execution folders
@@ -240,10 +263,12 @@ class SwanWrap(object):
 
             # run case main mesh
             self.run(p_run, input_file = self.proj.mesh_main.fn_input)
+            save_swan_prints(p_run, self.proj.mesh_main.ID )
 
             # run nested meshes
             for mesh_n in self.proj.mesh_nested_list:
                 self.run(p_run, input_file = mesh_n.fn_input)
+                save_swan_prints(p_run, mesh_n.ID )
 
             # log
             p = op.basename(p_run)
@@ -340,14 +365,17 @@ class SwanWrap_STAT(SwanWrap):
 
         return(xds_out)
 
-    def extract_output_points(self):
+    def extract_output_points(self, mesh=None):
         '''
         extract output from points all cases table_outpts.dat
 
         return xarray.Dataset (uses new dim "case" to join output)
         '''
 
-        # TODO: integrate mesh, same as for "extract_output"
+        # TODO: develop SwanIO_STAT.output_points()
+
+        # select main or nested mesh
+        if mesh == None: mesh = self.proj.mesh_main
 
         # get sorted execution folders
         run_dirs = self.get_run_folders()
@@ -357,7 +385,7 @@ class SwanWrap_STAT(SwanWrap):
         for p_run in run_dirs:
 
             # read output file
-            xds_case_out = self.io.output_points(p_run)
+            xds_case_out = self.io.output_points(p_run, mesh)
             l_out.append(xds_case_out)
 
         # concatenate xarray datasets (new dim: case)
@@ -426,7 +454,6 @@ class SwanWrap_NONSTAT(SwanWrap):
             run_dirs = run_dirs[case_ini:case_end]
             cs_ix = range(case_ini, case_end)
 
-
         # exctract output case by case and concat in list
         l_out = []
         for c, p_run in zip(cs_ix, run_dirs):
@@ -456,6 +483,8 @@ class SwanWrap_NONSTAT(SwanWrap):
         return list of xarray.Dataset (adds "case" value to each output)
         '''
 
+        # TODO: introducir opcional usar netcdf4
+
         # select main or nested mesh
         if mesh == None: mesh = self.proj.mesh_main
 
@@ -465,7 +494,6 @@ class SwanWrap_NONSTAT(SwanWrap):
         if (case_ini != None) & (case_end != None):
             run_dirs = run_dirs[case_ini:case_end]
             cs_ix = range(case_ini, case_end)
-
 
         # exctract output case by case and concat in list
         l_out = []

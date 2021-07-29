@@ -138,6 +138,13 @@ input_params = {
     'compute_deltc': '30 MIN',
     'output_deltt': '30 MIN',
 
+    'output_variables': [
+        'HSIGN', 'DIR', 'PDIR', 'TM02',
+        'TPS', 'RTP', 'FSPR', 'DSPR',
+        'DEPTH', 'WATLEV', 'WIND',
+        #'PTRTP', 'PTHSIGN', 'PTDIR', 'PTDSPR',
+    ],
+
     'output_points_x': [167.5, 167.5, 167],
     'output_points_y': [9.5, 9.6, 9.45],
 
@@ -171,6 +178,7 @@ sw.run_cases()
 
 # extract grid output from non-stationary cases
 xds_out_main = sw.extract_output()
+
 print('\noutput main mesh')
 print(xds_out_main)
 

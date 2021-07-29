@@ -116,7 +116,7 @@ mesh_nest1.dg = {
 }
 
 # depth value
-mesh_nest1.depth = np.ones((10,8)) * 158
+mesh_nest1.depth = np.ones((10,8)) * 155
 
 # computational grid description
 mesh_nest1.cg = {
@@ -133,7 +133,6 @@ mesh_nest1.cg = {
 
 sp.set_nested_mesh_list([mesh_nest1])
 
-
 # --------------------------------------
 # SWAN parameters (sea level, jonswap gamma, ...)
 input_params = {
@@ -148,13 +147,25 @@ input_params = {
     'wind_deltinp': '1 HR',
     'level_deltinp': '1 HR',
 
-    'compute_deltc': '10 MIN',
+    'compute_deltc': '5 MIN',
     'output_deltt': '30 MIN',
+
+    'output_points_x': [50.5, 70, 120],
+    'output_points_y': [60, 120, 160],
+
+    'output_variables': [
+        'HSIGN', 'DIR', 'PDIR', 'TM02',
+        'TPS', 'RTP', 'FSPR', 'DSPR',
+        'WIND', 'DEPTH', 'WATLEV', 'WIND',
+        #'PTHSIGN', 'PTDIR', 'PTRTP', 'PTDSPR',
+        'PTWFRAC', 'PTWLEN', 'PTSTEEP',
+    ],
 
     'physics':[
         'WIND DRAG WU',
         'GEN3 ST6 5.7E-7 8.0E-6 4.0 4.0 UP HWANG VECTAU TRUE10',
         'QUAD iquad=8',
+        #'OFF QUAD',
         'WCAP',
         #'SETUP',  # not compatible with spherical coords
         'TRIADS',
@@ -174,17 +185,20 @@ sp.set_params(input_params)
 sw = SwanWrap_NONSTAT(sp)
 
 # build non-stationary cases from wave_events list
-sw.build_cases([we])  # test one event
+sw.build_cases([we], make_winds=True, make_levels=True)  # test one event
 
 # run SWAN
 sw.run_cases()
 
 # extract output from non-stationary cases
-xds_out_main = sw.extract_output()
+xds_out_main = sw.extract_output()[0]
 print('\noutput main mesh')
 print(xds_out_main)
+print(xds_out_main.time.values[:])
 
 # extract output from nest1 mesh 
-xds_out_nest1 = sw.extract_output(mesh=sp.mesh_nested_list[0])
+xds_out_nest1 = sw.extract_output(mesh=sp.mesh_nested_list[0])[0]
 print('\noutput nest1 mesh')
 print(xds_out_nest1)
+print(xds_out_nest1.time.values[:])
+
