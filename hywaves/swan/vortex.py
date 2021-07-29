@@ -28,7 +28,7 @@ def geo_distance_meters(y_matrix, x_matrix, y_point, x_point, coords_mode):
 
     if coords_mode == 'SPHERICAL':
         arcl, _ = geo_distance_azimuth(y_matrix, x_matrix, y_point, x_point)
-        r = arcl * np.pi / 180.0 * RE  # to meteres
+        r = arcl * np.pi / 180.0 * RE  # to meters
 
     if coords_mode == 'CARTESIAN':
         r = geo_distance_cartesian(y_matrix, x_matrix, y_point, x_point)
@@ -55,8 +55,8 @@ def vortex_model(storm_track, swan_mesh, coords_mode='SPHERICAL'):
         rmw  (optional)
 
     - for SPHERICAL coordinates
-        lon / x
-        lat / y
+        lon
+        lat
 
     - for CARTESIAN coordiantes:
         x
