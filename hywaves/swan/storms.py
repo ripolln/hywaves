@@ -1,11 +1,211 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os.path as op
 import numpy as np
 import pandas as pd
+import xarray as xr
 from datetime import timedelta
+from numpy import polyfit
 
 from .geo import shoot, gc_distance
+
+
+###############################################################################
+# IBTrACS database is used to extract historical storm track data. However, 
+# specialized centers (RSMCs) employ different procedures to compute the maximum
+# sustained winds (Vmax). Therefore a conversion factor is applied to obtain the 
+# estimated 1-min average maximum sustained winds (input variable for "make_vortex").
+# Harper et al. (2010) recommends 0.93 to convert from 1-min to 10-min (at sea conditions)
+# instead of the traditional 0.88 factor.
+###############################################################################
+
+# dictionary of conversion factors (1-min to X-min)
+d_vns_windfac = {
+        'USA':      1,        # 1-min avg, (RSMC Miami, RSMC Honolulu, NHC, JTWC, CPHC)
+        'TOKYO':    0.93,     # 10-min avg, (RSMC Tokyo (JMA))
+        'CMA':      0.99,     # 2-min avg, (Chinese Meteorological Administration Shanghai Typhoon Institute)
+        'HKO':      0.93,     # 10-min avg, (Hong Kong Observatory (operated by JMA))
+        'NEWDELHI': 0.99,     # 3-min avg, (RSMC New Delhi)
+        'REUNION':  0.93,     # 10-min avg, (RSMC La Reunion (MeteoFrance))
+        'BOM':      0.93,     # 10-min avg, (Australian Bureau of Meteorology)
+        'WELLINGTON': 0.93,   # 10-min avg, (New Zealand MetService)
+        'NADI':     0.93,     # 10-min avg, (RSMC Nadi, Fiji Meteorological Service)
+        'WMO':      1,        # mixed, it is assumed 1-min!!!
+        }
+
+# dictionary of centers names for calling variables
+d_vns_idcenter = {
+        'WMO':          'wmo',
+        'USA':          'usa',
+        'TOKYO':        'tokyo',
+        'CMA':          'cma',
+        'HKO':          'hko',
+        'NEWDELHI':     'newdelhi',
+        'REUNION':      'reunion',
+        'BOM':          'bom',
+        'WELLINGTON':   'wellington',
+        'NADI':         'nadi',
+        }
+
+# dictionary of centers names for calling variables
+d_vns_basinscenter = {
+        'WMO':          ['NA','SA','EP','WP','SP','NI','SI'],
+        'USA':          ['NA','SA','EP','WP','SP','NI','SI'],
+        'TOKYO':        ['WP'],
+        'CMA':          ['WP'],
+        'HKO':          ['WP'],
+        'NEWDELHI':     ['NI'],
+        'REUNION':      ['SI'],
+        'BOM':          ['SP','SI'],
+        'WELLINGTON':   ['SP'],
+        'NADI':         ['SP'],
+        }
+
+def get_dictionary_center(d_vns_idcenter, center='WMO'):
+    'Returns the dictionary of a center (IBTrACS)'
+    
+    source = d_vns_idcenter[center]
+    
+    # lon, lat
+    if source=='wmo':   dict_lon, dict_lat = 'lon','lat'
+    else:               dict_lon, dict_lat = source+'_lon',source+'_lat'
+    
+    # radii RMW is provided by centers: USA, REUNION, BOM
+    if source=='usa' or source=='reunion' or source=='bom':
+        dict_radii = source+'_rmw'
+    else: dict_radii = None
+        
+    # variables dictionary
+    d_vns = {
+        'source':       center,
+        'time':         'time',
+        'longitude':    dict_lon,
+        'latitude':     dict_lat,
+        'pressure':     source+'_pres',
+        'maxwinds':     source+'_wind',
+        'rmw':          dict_radii,
+    }
+    
+    return d_vns
+
+
+# generate pmin-vmax polynomial fit coefficients
+
+def Extract_basin_storms(xds, id_basin):
+    '''
+    Selects storms originated in a given a basin
+    '''
+    
+    # select genesis basin (np.bytes_)
+    origin_basin = xds.sel(date_time=xds.date_time[0]).basin.values
+    origin_basin = np.asarray([c.decode('UTF-8') for c in origin_basin])
+    
+    # select storms within given basin
+    storm_pos = np.where(origin_basin == id_basin)[0]
+    
+    # extract storms for a given genesis basin
+    xds_basin = xds.sel(storm=storm_pos)
+    
+    return xds_basin
+
+#d_vns_nadi = {
+#    'source':    'NADI',
+#    'basins':    ['SP'],
+#    'longitude': 'nadi_lon',
+#    'latitude':  'nadi_lat',
+#    'time':      'time',
+#    'pressure':  'nadi_pres',
+#    'wind':      'nadi_wind',
+#    'rmw':       None,
+#}
+def ibtracs_fit_pmin_vmax(d_vns_idcenter):
+    '''
+    Generate third order polynomial fit coefficients for statistical relationship 
+    between minimum central pressure and maximum wind speed (at 1-min avg).
+    
+    Maximum wind speed are converted to 1-min average for each RSMC center.
+    '''
+    
+    p_ibtracs = op.join(op.dirname(op.realpath(__file__)), 'resources', 'IBTrACS.nc')
+    xds_ibtracs = xr.open_dataset(p_ibtracs)
+    
+    # all basins, centers
+    basin_all = ['NA','SA','WP','EP','SP','NI','SI']
+    center_all = ['USA','TOKYO','CMA','HKO','NEWDELHI','REUNION','BOM','WELLINGTON','NADI','WMO']
+    
+    # set storms id as coordinate
+    xds_ibtracs['stormid'] = (('storm'), xds_ibtracs.storm.values)
+    xds_ibtracs.set_coords('stormid')
+    
+    # polynomial order
+    N = 3   
+    coef_fit = np.nan * np.zeros((len(center_all), len(basin_all), N+1))
+#    pres_data = np.nan * np.zeros((len(center_all), len(basin_all), 50000))
+#    wind_data = np.nan * np.zeros((len(center_all), len(basin_all), 50000))
+
+    # loop for all centers
+    for ic,center in enumerate(center_all):
+
+        d_vns_center = get_dictionary_center(d_vns_idcenter, center=center)
+        dict_pres = d_vns_center['pressure']    # mbar
+        dict_wind = d_vns_center['maxwinds']    # kt
+        basin_ids = d_vns_basinscenter[center]  # basins
+
+        # loop for all basins
+        for basin in basin_ids:
+            
+            ibasin = np.where(basin == np.array(basin_all))[0][0]
+            
+            # select storms at basin X
+            xds_basin = Extract_basin_storms(xds_ibtracs, basin)
+    
+            # extract basin data: pressure, wind, landbasin
+            Pbasin = xds_basin[dict_pres].values.reshape(xds_basin.storm.size * xds_basin.date_time.size)
+            Wbasin = xds_basin[dict_wind].values.reshape(xds_basin.storm.size * xds_basin.date_time.size)
+            Wbasin /= d_vns_windfac[center]     # winds are converted to 1-min
+            landbasin = xds_basin['dist2land'].values.reshape(xds_basin.storm.size * xds_basin.date_time.size)
+    
+            PWbasin_s = np.column_stack((Pbasin, Wbasin, landbasin))
+    
+            # index for removing nans (including landmask)
+            ix_nonan = ~np.isnan(PWbasin_s).any(axis=1)
+            PWbasin_s = PWbasin_s[ix_nonan]
+    
+            # Fitting Polynomial Regression to the dataset 
+            X, y = PWbasin_s[:,0], PWbasin_s[:,1]
+            u = polyfit(X, y, deg=N)
+    
+            # store
+            coef_fit[ic,ibasin,:] = u
+#            pres_data[ic,ib,:PWbasin_s.shape[0]] = PWbasin_s[:,0].T
+#            wind_data[ic,ib,:PWbasin_s.shape[0]] = PWbasin_s[:,1].T
+
+    # store
+    xds = xr.Dataset(
+        {
+            'coef': (('center','basin','polynomial'), coef_fit),
+#            'pres': (('center','basin','data'), pres_data),
+#            'wind': (('center','basin','data'), wind_data),
+        },
+    {
+        'center': np.asarray(center_all),
+        'basin': np.asarray(basin_all),
+    })
+    # save
+    p_coef = op.join(op.dirname(op.realpath(__file__)), 'resources', 'ibtracs_coef_pmin_vmax.nc')
+    xds.to_netcdf(p_coef)
+
+#    xds.coef.attrs = 'Pressure (mbar), Wind speed (kt, 1-min avg)'
+#    xds.pres.attrs['name'] = 'Pressure'
+#    xds.pres.attrs['units'] = 'mbar'
+#    xds.wind.attrs['name'] = 'MaxWinds'
+#    xds.wind.attrs['units'] = 'kt (1-min)'
+    
+    return xds
+
+###############################################################################
+
 
 
 # STORM TRACK LIBRARY
@@ -26,7 +226,7 @@ def get_category(ycpres):
 
     return categ
 
-def historic_track_preprocessing(xds, d_vns):
+def historic_track_preprocessing(xds, center='USA'): #d_vns):
     '''
     Historic track is preprocessed, by removing NaN data, apply longitude
     convention [0º-360º], change time format and define storm category
@@ -37,6 +237,11 @@ def historic_track_preprocessing(xds, d_vns):
     returns variables:  
            time, lat, lon, pressure, wind, timestep, category, mean translational speed
     '''
+    
+    ###########################################################################
+    # dictionary for IBTrACS center
+    d_vns = get_dictionary_center(d_vns_idcenter, center=center)
+    ###########################################################################
 
     # get names of vars
     nm_lon = d_vns['longitude']
@@ -44,6 +249,9 @@ def historic_track_preprocessing(xds, d_vns):
     nm_prs = d_vns['pressure']
     nm_tim = d_vns['time']
     nm_win = d_vns['maxwinds']
+    ###########################################################################
+    nm_rmw = d_vns['rmw']
+    ###########################################################################
 
     # get var time
     ytime = xds[nm_tim].values         # datetime64
@@ -53,14 +261,26 @@ def historic_track_preprocessing(xds, d_vns):
     ylat_tc = xds[nm_lat].values[~np.isnat(ytime)]    # latitude
     ylon_tc = xds[nm_lon].values[~np.isnat(ytime)]    # longitude
     ywind = xds[nm_win].values[~np.isnat(ytime)]      # wind speed [kt]
+    ###########################################################################
+    if nm_rmw:  yradii = xds[nm_rmw].values[~np.isnat(ytime)]  # RMW [nmile]
+    ###########################################################################
     ytime = ytime[~np.isnat(ytime)]
 
     # remove NaNs (pressure)
     ylat_tc = ylat_tc[~np.isnan(ycpres)]
     ylon_tc = ylon_tc[~np.isnan(ycpres)]
     ywind = ywind[~np.isnan(ycpres)]
+    ###########################################################################
+    if nm_rmw:  yradii = yradii[~np.isnat(ycpres)]
+    if not nm_rmw:  yradii = None
+    ###########################################################################
     ytime = ytime[~np.isnan(ycpres)]
     ycpres = ycpres[~np.isnan(ycpres)]
+    
+    ###########################################################################
+    # convert (X)min to 1-min avg winds (depends on center)
+    ywind = ywind / d_vns_windfac[center]
+    ###########################################################################
 
     # longitude convention: [0º,360º]
     ylon_tc[ylon_tc<0] = ylon_tc[ylon_tc<0] + 360
@@ -99,8 +319,8 @@ def historic_track_preprocessing(xds, d_vns):
         
     # mean value
     vmean = np.mean(vmean)  # [kt]
-
-    return st_time, ylat_tc, ylon_tc, ycpres, ywind, ts, categ, vmean
+    
+    return st_time, ylat_tc, ylon_tc, ycpres, ywind, ts, categ, vmean, yradii
 
 def ibtrac_basin_fitting(x0, y0):
     '''
@@ -157,8 +377,13 @@ def historic_track_interpolation(st_time, ylon_tc, ylat_tc, ycpres, ywind, y0, x
     '''
 
     RE = 6378.135   # earth radius [km]
+    
+    # check file of IBTrACS fitting coefficients (Pmin-Vmax)
+    p_coef = op.join(op.dirname(op.realpath(__file__)), 'resources', 'ibtracs_coef_pmin_vmax.nc')
+    if not p_coef:  xds_coef = ibtracs_fit_pmin_vmax(d_vns_idcenter)
+    else:           xds_coef = xr.open_dataset(p_coef)
 
-    # cubic polynomial fitting coefficients for IBTrACS basins Pmin-Vmax relationship
+    # select polynomial fitting coefficients (center, basin)
     p1, p2, p3, p4 = ibtrac_basin_fitting(x0, y0)
 
     # storm variables
