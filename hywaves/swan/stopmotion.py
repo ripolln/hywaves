@@ -8,7 +8,43 @@ from math import radians, degrees, sin, cos, asin, acos, sqrt, atan2, pi
 from .geo import gc_distance
 
 
-# STOPMOTION LIBRARY
+# stopmotion SWAN polar coordinates
+
+def generate_polar_coords(xlength, ylength, res, rings=28, radii_ini=5000, angle_inc=5):
+    '''
+    xlength, ylength - domain dimensions [m]
+    res              - spatial resolution [m]
+    
+    rings      - dimension of radii array
+    radi_ini   - initial radii [m]
+    
+    Returns regular grid points (xxr,yyr) and polar grid points (xxp,yyp)
+    '''
+    
+    # regular cartesian grid
+    xxr, yyr = np.meshgrid(np.arange(-xlength/2, xlength/2, res), 
+                           np.arange(-xlength/2, xlength/2, res))
+
+    # custom polar grid calculation
+
+    # radii array
+    rc = np.zeros(rings)
+    rc[0] = radii_ini
+    for i in range(1, rings):       rc[i] = ((i+1)/i) ** 1.5 * rc[i-1]
+    
+    # radii (m), angle (º) meshgrid
+    rc, thetac = np.meshgrid(rc, 
+                             np.arange(0, 360, angle_inc))
+    
+    # polar grid
+    xxp = rc * np.sin(thetac * np.pi/180)
+    yyp = rc * np.cos(thetac * np.pi/180)
+    
+    return xxr, yyr, xxp, yyp  # 2d-arrays
+
+
+
+# STOPMOTION functions
 
 def Extract_basin_storms(xds, id_basin):
     'Selects storms with genesis in a given a basin (NA,SA,WP,EP,SP,NI,SI)'
