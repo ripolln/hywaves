@@ -74,7 +74,7 @@ d_params_template = {
         'TPS', 'RTP', 'FSPR', 'DSPR',
         'DEPTH', 'WATLEV', 'WIND'],    # output varibles (compgrid) to be stored
 
-    # OUTPUT storage custom initial time (delta hours from case start)
+    # OUTPUT storage custom initial time (delta hours from case start)
     'output_time_ini_specout': None,
     'output_time_ini_block': None,
     'output_time_ini_table': None,
@@ -91,6 +91,9 @@ d_params_template = {
     'output_spec_deltt': None,    # output delta time '5 MIN', '1 HR', ... (us: SEC, MIN, HR, DAY)
     'output_spec': False,         # activates COMPGRID for spectra storage
     'output_points_spec': False,  # activates OUTPTS for spectra storage
+    
+    # save wind vortex (optional)
+    'wind_vortex_nc': False,
 }
 
 
@@ -372,7 +375,7 @@ class SwanWrap_STAT(SwanWrap):
         return xarray.Dataset (uses new dim "case" to join output)
         '''
 
-        # TODO: develop SwanIO_STAT.output_points()
+        # TODO: develop SwanIO_STAT.output_points()
 
         # select main or nested mesh
         if mesh == None: mesh = self.proj.mesh_main
