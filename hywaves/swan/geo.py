@@ -34,7 +34,8 @@ def gc_distance(lat1, lon1, lat2, lon2):
     return rng, az
 
 def shoot(lon, lat, azimuth, maxdist=None):
-    """Shooter Function
+    """
+    Shooter Function
     Original javascript on http://williams.best.vwh.net/gccalc.htm
     Translated to python by Thomas Lecocq
     """
@@ -171,3 +172,23 @@ def degN2degC(degN):
     degC = np.mod(-degN + 270, 360)
     
     return degC
+
+def GeoAzimuth(lat1, lon1, lat2, lon2):
+    'Returns geodesic azimuth between point1 and point2'
+
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+
+    az = atan2(
+        cos(lat2) * sin(lon2-lon1),
+        cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(lon2-lon1)
+    )
+    if lat1 <= -pi/2: az = 0
+    if lat2 >=  pi/2: az = 0
+    if lat2 <= -pi/2: az = pi
+    if lat1 >=  pi/2: az = pi
+
+    az = az % (2*pi)
+    az = degrees(az)
+
+    return az
+
