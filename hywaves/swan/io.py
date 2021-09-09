@@ -377,7 +377,7 @@ class SwanIO_STAT(SwanIO):
         t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 {1}\n$\n".format(
             mesh.fn_output, out_vars)
 
-        # TODO: add SPECOUT line
+        # TODO: add SPECOUT line
         # SPECOUT 'COMPGRID' SPEC2D ABS 'outputspec_filename'
 
         # -- COMPUTE --
@@ -470,7 +470,7 @@ class SwanIO_STAT(SwanIO):
         'Read output spectral data for swan SPECOUT text file'
 
         # TODO: def read output SPEC for STAT cases
-        # (same as at SwanIO_NONSTAT but without TIME)
+        # (same as at SwanIO_NONSTAT but without TIME)
 
         return None
 
@@ -597,9 +597,10 @@ class SwanIO_NONSTAT(SwanIO):
         with open(save, 'w') as f:
             f.write(txt)
 
-        # vortex .nc file
-        p_vortex = op.join(p_case, 'vortex_{0}.nc'.format(code))
-        xds_vortex.to_netcdf(p_vortex)
+        # vortex .nc file
+        if self.proj.params['wind_vortex_nc']:
+            p_vortex = op.join(p_case, 'vortex_{0}.nc'.format(code))
+            xds_vortex.to_netcdf(p_vortex)
 
     def make_level_files(self, p_case, wave_event, mesh):
         'Generate event level mesh files (swan compatible)'
@@ -751,7 +752,7 @@ class SwanIO_NONSTAT(SwanIO):
         t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 {1} OUT {2} {3}\n$\n".format(
             mesh.fn_output, out_vars, t0_out_block, dt_out)
 
-        # wave spectra at output computational grid 
+        # wave spectra at output computational grid
         if self.proj.params['output_spec']:
             dt_spec_out = self.proj.params['output_spec_deltt']
             t += "SPECOUT 'COMPGRID' SPEC2D ABS '{0}' OUT {1} {2}\n".format(
@@ -1012,7 +1013,7 @@ class SwanIO_NONSTAT(SwanIO):
     def read_outpts_spec(self, p_outpts_spec):
         'Read output spectral data for swan SPECOUT text file'
 
-        # TODO puede romper por memoria, usar la alternativa netcdf4
+        # TODO puede romper por memoria, usar la alternativa netcdf4
 
         with open(p_outpts_spec) as f:
 
@@ -1133,7 +1134,7 @@ class SwanIO_NONSTAT(SwanIO):
     def output_case_spec(self, p_case, mesh):
         'read spec_compgrid_meshID.dat output file and returns xarray.Dataset'
 
-        # TODO: cuando SwanIO_STAT() tenga su "read_outpts_spec" mover esta funcion a SwanIO()
+        # TODO: cuando SwanIO_STAT() tenga su "read_outpts_spec" mover esta funcion a SwanIO()
 
         # extract output from selected mesh
         p_dat = op.join(p_case, mesh.fn_output_spec)

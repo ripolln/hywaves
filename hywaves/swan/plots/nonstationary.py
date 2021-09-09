@@ -203,9 +203,9 @@ def axplot_storm_track(ax, st, cat_colors=True):
             )
 
     # target point
-    if 'x0' in st.keys():
+    if 'x0' in st.attrs.keys():
         ax.plot(
-            st.x0, st.y0, '+', mew=3, ms=15,
+            st.attrs['x0'], st.attrs['y0'], '+', mew=3, ms=15,
             color='dodgerblue', label='target',
         )
 
