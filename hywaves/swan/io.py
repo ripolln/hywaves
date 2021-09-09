@@ -274,6 +274,43 @@ class SwanIO(object):
 
         return xds_out
 
+    def add_metadata(self, xds, meta):
+        'Adds metadata (if available) to output xarray.Datasets'
+
+        for vn in xds.variables:
+            if vn in meta.keys():
+                name, units, descr = meta[vn]
+            else:
+                name, units, descr = vn, '-', '-'
+
+            xds[vn].attrs.update({'units':units, 'description':descr})
+            xds = xds.rename_vars({vn:name})
+
+        return xds
+
+    def fix_partition_vars(self, xds_out):
+        'read partitions variables from output .mat file and returns xarray.Dataset'
+
+        # partition variables keys
+        partition_keys = ['HsPT', 'TpPT', 'DrPT', 'DsPT', 'WfPT', 'WlPT', 'StPT']
+
+        # output variables
+        vns = xds_out.variables
+
+        for k in partition_keys:
+            vps = sorted([v for v in vns if v.startswith(k)])
+
+            # skip if no partition key present
+            if vps == []: continue
+
+            cc = xr.concat([xds_out[v] for v in vps], 'partition',)
+
+            # drop splitted partition vars and add full partition var
+            for v in vps: xds_out = xds_out.drop_vars(v)
+            xds_out[k] = cc
+
+        return xds_out
+
 
 class SwanIO_STAT(SwanIO):
     'SWAN numerical model input/output - STATIONARY cases'
@@ -333,10 +370,12 @@ class SwanIO_STAT(SwanIO):
         if not mesh.is_nested:
             t += swn_nestout(self.proj)
 
+        # output variables
+        out_vars = ' '.join(self.proj.params['output_variables'])
+
         # -- OUTPUT: BLOCK  -- 
-        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 HSIGN TM02 DIR TPS DSPR\n$\n".format(
-            mesh.fn_output,
-        )
+        t += "BLOCK 'COMPGRID' NOHEAD '{0}' LAY 3 {1}\n$\n".format(
+            mesh.fn_output, out_vars)
 
         # TODO: add SPECOUT line
         # SPECOUT 'COMPGRID' SPEC2D ABS 'outputspec_filename'
@@ -399,21 +438,24 @@ class SwanIO_STAT(SwanIO):
     def outmat2xr(self, p_mat):
         'read output .mat file and returns xarray.Dataset'
 
-        # TODO: update
-
         # matlab dictionary
         dmat = loadmat(p_mat)
 
-        # return dataset
-        xds_out = xr.Dataset(
-            {
-                'Hsig':   (('X','Y',), dmat['Hsig'].T,   {'units':'m'}),
-                'Tm02':   (('X','Y',), dmat['Tm02'].T,   {'units':'s'}),
-                'Dir':    (('X','Y',), dmat['Dir'].T,    {'units':'º'}),
-                'Dspr':    (('X','Y',), dmat['Dspr'].T,  {'units':'º'}),
-                'TPsmoo': (('X','Y',), dmat['TPsmoo'].T, {'units':'s'}),
-            }
-        )
+        # find output variable keys inside .mat file
+        ks = list(set([x.split('_')[0] for x in dmat.keys()]))
+        ks = [x for x in ks if x]  # remove empty values
+        if 'Windv' in ks: ks.remove('Windv'); ks.append('Windv_x'); ks.append('Windv_y')
+
+        # iterate  variables 
+        xds_out = xr.Dataset()
+        for vn in ks:
+            xds_out[vn] = (('Y','X',), dmat['{0}'.format(vn)])
+
+        # join partitions variables (if any)
+        xds_out = self.fix_partition_vars(xds_out)
+
+        # add variable metadata (if available)
+        xds_out = self.add_metadata(xds_out, meta_out_mat)
 
         return xds_out
 
@@ -842,23 +884,6 @@ class SwanIO_NONSTAT(SwanIO):
                 make_levels = make_levels,
             )
 
-    def add_metadata(self, xds, meta):
-        'Adds metadata (if available) to output xarray.Datasets'
-
-        for vn in xds.variables:
-            if vn in meta.keys():
-                name, units, descr = meta[vn]
-            else:
-                name, units, descr = vn, '-', '-'
-
-            xds[vn].attrs.update({'units':units, 'description':descr})
-            xds = xds.rename_vars({vn:name})
-
-        return xds
-
-
-    # TODO: revisar coordenadas de los archivos output (X,Y - lon, lat)
-
     def outmat2xr(self, p_mat):
         'read output .mat file and returns xarray.Dataset'
 
@@ -892,29 +917,6 @@ class SwanIO_NONSTAT(SwanIO):
 
         # add variable metadata (if available)
         xds_out = self.add_metadata(xds_out, meta_out_mat)
-
-        return xds_out
-
-    def fix_partition_vars(self, xds_out):
-        'read partitions variables from output .mat file and returns xarray.Dataset'
-
-        # partition variables keys
-        partition_keys = ['HsPT', 'TpPT', 'DrPT', 'DsPT', 'WfPT', 'WlPT', 'StPT']
-
-        # output variables
-        vns = xds_out.variables
-
-        for k in partition_keys:
-            vps = sorted([v for v in vns if v.startswith(k)])
-
-            # skip if no partition key present
-            if vps == []: continue
-
-            cc = xr.concat([xds_out[v] for v in vps], 'partition',)
-
-            # drop splitted partition vars and add full partition var
-            for v in vps: xds_out = xds_out.drop_vars(v)
-            xds_out[k] = cc
 
         return xds_out
 
