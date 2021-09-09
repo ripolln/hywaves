@@ -123,36 +123,34 @@ def geo_distance_cartesian(y_matrix, x_matrix, y_point, x_point):
     '''
     Returns cartesian distance between y,x matrix and y,x point
     '''
-    
+
     dist = np.zeros(y_matrix.shape) * np.nan
 
     sh1, sh2 = y_matrix.shape
 
     for i in range(sh1):
         for j in range(sh2):
-            dist[i,j] = sqrt(
-                    (y_point - y_matrix[i][j])**2 + (x_point - x_matrix[i][j])**2
-                    )
+            dist[i,j] = sqrt((y_point - y_matrix[i][j])**2 + (x_point - x_matrix[i][j])**2)
 
     return dist
-   
+
 def degC2degN(degC):
     '''
-    Converts a wind direction on a unit circle (degrees cartesian) to 
+    Converts a wind direction on a unit circle (degrees cartesian) to
     a direction in nautical convention (degrees north).
-    
-    Angle in a unit circle: 
+
+    Angle in a unit circle:
     The angle between the horizontal east (E) and the head (pointing outwards), counter-clockwise
-    
+
                 ^ N (90)
                 |
     W (180) <~~   ~~> E (0)
                 |
                 v S (270)
-    
-    Angle in nautical convention: 
+
+    Angle in nautical convention:
     The angle between the vertical up (N) and the tail (pointing inwards), clockwise
-    
+
                 | N (0)
                 v
     W (270) ~~>   <~~ E (90)
@@ -160,14 +158,15 @@ def degC2degN(degC):
                 | S (180)
     '''
     degN = np.mod(-degC + 270, 360)
-    
+
     return degN
 
 def degN2degC(degN):
     '''
-    Converts a wind direction in nautical convention (degrees north) to a  
+    Converts a wind direction in nautical convention (degrees north) to a
     a direction on a unit circle (degrees cartesian).
     '''
     degC = np.mod(-degN + 270, 360)
-    
+
     return degC
+
