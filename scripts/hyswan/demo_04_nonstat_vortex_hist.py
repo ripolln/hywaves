@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# TODO: add nested mesh to demo
-# TODO: add plots
-# TODO: check input and output grid orientation (caution transpose)
-
 # common 
 import sys
 import os
@@ -30,7 +26,7 @@ p_data = op.abspath(op.join(op.dirname(__file__), '..', '..', 'data'))
 p_demo = op.join(p_data, 'demo')
 
 # bathymetry (from .nc file)
-p_bathy = op.join(p_demo, 'nb_demo_majuro_samoa', 'depth_majuro.nc')
+p_bathy = op.join(p_demo, 'majuro', 'depth_majuro.nc')
 
 xds_bathy = xr.open_dataset(p_bathy)
 
@@ -45,7 +41,7 @@ lat = xds_bathy.lat.values[:]
 depth = xds_bathy.elevation.values[:] * -1  # elevation to depth 
 
 # shoreline (from .nc file)
-p_shore = op.join(p_demo, 'nb_demo_majuro_samoa', 'shore_majuro.npy')
+p_shore = op.join(p_demo, 'majuro', 'shore_majuro.npy')
 
 np_shore = np.load(p_shore)
 
@@ -56,7 +52,7 @@ np_shore[:,0] = lon_shore
 
 
 # historic storm
-storm = xr.open_dataset(op.join(p_demo, 'storm_ibtracs_paka.nc'))
+storm = xr.open_dataset(op.join(p_demo, 'majuro', 'storm_ibtracs_paka.nc'))
 
 # target coordinates
 target = 'Kwajalein'
@@ -225,7 +221,7 @@ d_vns = {
 }
 
 # preprocess storm variables
-st_time, ylat_tc, ylon_tc, ycpres, ywind, ts, categ = historic_track_preprocessing(storm, d_vns)
+st_time, ylat_tc, ylon_tc, ycpres, ywind, ts, categ, vmean = historic_track_preprocessing(storm, d_vns)
 
 # generate interpolated storm track  
 dt_interp = 30  # minutes
@@ -271,6 +267,5 @@ print(xds_out_nest2)
 
 # extract point output from non-stationary cases
 xds_out_pts = sw.extract_output_points()
-# TODO: to integrate mesh
 
 

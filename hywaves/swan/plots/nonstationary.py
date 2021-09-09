@@ -11,7 +11,7 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-from .common import GetBestRowsCols, calc_quiver, custom_cmap
+from .common import GetBestRowsCols, calc_quiver, custom_cmap, bathy_cmap
 
 # import constants
 from .config import _faspect, _fsize, _fdpi
@@ -87,6 +87,19 @@ def add_wind_module_dir(xds):
     xds['Wind_dir'].attrs={'units':'º', 'description': 'Wind direction'}
 
     return(xds)
+
+def storm_title(storm_track):
+    'returns title for storm_track cases'
+
+    t1 = 'Pmin: {0:.2f} hPa'.format(np.min(storm_track.p0))
+    t2 = 'Vmean: {0:.2f} km/h'.format(np.mean(storm_track.vf)*1.852)
+
+    ttl_st = '\n{0} / {1}'.format(t1, t2)
+
+    if 'move' in storm_track:
+        ttl_st += ' / Gamma: {0:.2f}º'.format(storm_track.move[0])
+
+    return ttl_st
 
 
 # axes generation
@@ -169,7 +182,7 @@ def axplot_storm_track(ax, st, cat_colors=True):
 
     # plot track
     plt.plot(
-        st.lon, st.lat, '-', linewidth=4,
+        xt, yt, '-', linewidth=4,
         color='black', label='Storm Track'
     )
 
@@ -180,8 +193,8 @@ def axplot_storm_track(ax, st, cat_colors=True):
         categ = np.array(get_category(st.p0))
 
         for c in range(7):
-            lonc = st.lon[np.where(categ==c)[0]]
-            latc = st.lat[np.where(categ==c)[0]]
+            lonc = xt[np.where(categ==c)[0]]
+            latc = yt[np.where(categ==c)[0]]
             label = 'cat {0}'.format(c)
             if c==6: label = 'unknown'
             ax.plot(
@@ -190,10 +203,11 @@ def axplot_storm_track(ax, st, cat_colors=True):
             )
 
     # target point
-    ax.plot(
-        st.x0, st.y0, '+', mew=3, ms=15,
-        color='dodgerblue', label='target',
-    )
+    if 'x0' in st.attrs.keys():
+        ax.plot(
+            st.attrs['x0'], st.attrs['y0'], '+', mew=3, ms=15,
+            color='dodgerblue', label='target',
+        )
 
 def axplot_series(ax, xda_v, lc, mesh_ID, linestyle='-'):
     'axes plot variables series'
@@ -218,7 +232,7 @@ def axplot_series(ax, xda_v, lc, mesh_ID, linestyle='-'):
 #    - Vortex Input winds
 #    - Vortex Grafiti winds
 
-def plot_project_site(swan_proj):
+def plot_project_site(swan_proj, vmin=None, vmax=None, zoom=False, shoreline=False):
     '''
     Plots SwanProject site
         - bathymetry
@@ -237,9 +251,12 @@ def plot_project_site(swan_proj):
     mesh = swan_proj.mesh_main
     XX, YY, depth = mesh2np(mesh)
 
+    if vmin == None: vmin = np.min(depth)
+    if vmax == None: vmax = np.max(depth)
+
     pm = axplot_var_map(
-        axs, XX, YY, depth,
-        cmap = 'gist_earth_r',
+        axs, XX, YY, -depth, vmin=vmin, vmax=vmax,#depth,
+        cmap = bathy_cmap(np.abs(vmin), np.abs(vmax)),#'gist_earth_r',
     )
     cbar = fig.colorbar(pm, ax=axs)
     cbar.ax.set_ylabel('depth (m)', rotation=90, va="bottom", fontweight='bold')
@@ -249,7 +266,7 @@ def plot_project_site(swan_proj):
 
     # plot shoreline
     shore = swan_proj.shore
-    if shore.any():
+    if shore.any() and shoreline:
         axplot_shore(axs, np_shore=shore)
 
     # plot output points (control points)
@@ -263,6 +280,13 @@ def plot_project_site(swan_proj):
 
     # plot nested meshes
     axplot_nested_meshes(axs, swan_proj.mesh_nested_list)
+
+    # plot zoom limits (nest0)
+    if zoom:
+        mesh0 = swan_proj.mesh_nested_list[0]
+        XX_m, YY_m, _ = mesh2np(mesh0)
+        axs.set_xlim([XX_m[0], XX_m[-1]])
+        axs.set_ylim([YY_m[0], YY_m[-1]])
 
     # title
     axs.set_title('SWAN Project Site: {0}'.format(swan_proj.name),
@@ -311,8 +335,10 @@ def plot_case_input(swan_proj, storm_track_list=[], case_number=0):
         axplot_storm_track(axs, st)
 
         # add text to title
-        ttl_st = '\nPmin: {0:.2f} hPa / Vmean: {1:.2f} km/h / Gamma: {2:.2f}º'.format(
-            np.min(st.p0), np.mean(st.vf)*1.852, st.move[0])
+        ttl_st = storm_title(st)
+
+    else:
+        ttl_st = ''
 
     # title
     axs.set_title(
@@ -363,8 +389,12 @@ def plot_case_vortex_input(swan_wrap, storm_track_list=[], t_num=10, case_number
     xds_v = xds_vortex.isel(time=t_num)
 
     # get mesh data from vortex dataset
-    X = xds_v['lon'].values[:]
-    Y = xds_v['lat'].values[:]
+    coords_mode = swan_proj.params['coords_mode']
+    if coords_mode == 'SPHERICAL':      xa, ya = 'lon', 'lat'
+    else:                               xa, ya = 'X', 'Y'
+
+    X = xds_v[xa].values[:]
+    Y = xds_v[ya].values[:]
 
     # vortex wind and dir
     xds_v_wnd = xds_v['W']
@@ -397,7 +427,7 @@ def plot_case_vortex_input(swan_wrap, storm_track_list=[], t_num=10, case_number
 
     # plot quiver
     if quiver:
-        axplot_quiver(axs, X, Y, xds_v_wnd.values[:], xds_v_dir.values[:])  # TODO .values[:])
+        axplot_quiver(axs, X, Y, xds_v_wnd.values[:], xds_v_dir.values[:])
 
     # plot shoreline
     shore = swan_proj.shore
@@ -468,8 +498,13 @@ def plot_case_vortex_grafiti(swan_wrap, storm_track_list=[], case_number=0,
     var_units = xds_var.units
 
     # get mesh data from output dataset
-    X = xds_var['lon'].values[:]
-    Y = xds_var['lat'].values[:]
+    coords_mode = swan_proj.params['coords_mode']
+    if coords_mode == 'SPHERICAL':
+        xa, ya = 'lon', 'lat'
+    else:
+        xa, ya = 'X', 'Y'
+    X = xds_var[xa].values[:]
+    Y = xds_var[ya].values[:]
 
     # maximum and minimum values 
     vmax = float(xds_var.max().values)
@@ -560,10 +595,12 @@ def plot_matrix_input(swan_proj, storm_track_list=[],
             axplot_storm_track(ax, st)
 
             # add text to title
-            ttl_st = '\nPmin: {0:.2f} hPa / Vmean: {1:.2f} km/h / Gamma: {2:.2f}º'.format(
-                np.min(st.p0), np.mean(st.vf)*1.852, st.move[0])
-            ax.text(0.1, 0.02, '{0}'.format(ttl_st), color='k', fontsize=18,
-                    transform=ax.transAxes)
+            ttl_st = storm_title(st)
+            ax.text(
+                0.1, 0.02, '{0}'.format(ttl_st),
+                color='k', fontsize=18,
+                transform=ax.transAxes
+            )
 
         # number
         ax.text(0.02, 0.02, case_i, color='fuchsia', fontweight='bold', fontsize=20,
@@ -733,10 +770,8 @@ def plot_case_output_grafiti(
 
     # get mesh data from output dataset
     coords_mode = swan_proj.params['coords_mode']
-    if coords_mode == 'SPHERICAL':
-        xa, ya = 'lon', 'lat'
-    else:
-        xa, ya = 'X', 'Y'
+    if coords_mode == 'SPHERICAL':      xa, ya = 'lon', 'lat'
+    else:                               xa, ya = 'X', 'Y'
     X = xds_var[xa].values[:]
     Y = xds_var[ya].values[:]
 
@@ -878,8 +913,11 @@ def axplot_grafiti(ax, swan_proj, xds_case, case_number, var_name,
     xds_var = xds_case[var_name]
 
     # get mesh data from output dataset
-    X = xds_var['lon'].values[:]
-    Y = xds_var['lat'].values[:]
+    coords_mode = swan_proj.params['coords_mode']
+    if coords_mode == 'SPHERICAL':      xa, ya = 'lon', 'lat'
+    else:                               xa, ya = 'X', 'Y'
+    X = xds_var[xa].values[:]
+    Y = xds_var[ya].values[:]
 
     # grafiti
     xds_var_max = xds_var.max(dim='time')
@@ -920,7 +958,8 @@ def axplot_grafiti(ax, swan_proj, xds_case, case_number, var_name,
     return pc
 
 def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[],
-                        case_ini=None, case_end=None, mesh=None):
+                        case_ini=None, case_end=None, mesh=None, 
+                        width=23*1.5, height=20*1.5):
     '''
     # TODO: documentar
     var_name: 'W' (vortex), 'Hsig' (output)
@@ -965,9 +1004,21 @@ def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[],
 
     # get number of rows and cols for gridplot 
     n_rows, n_cols = GetBestRowsCols(len(l_xds_out))
+    
+    ###########################################################################
+    if n_cols==1:    # when not an integer or divisor !!!
+        sqrt_n = np.sqrt(len(l_xds_out)).round()
+        n_rows = int(sqrt_n)
+        n_cols = int(sqrt_n)
+    if n_rows > n_cols: 
+        n_rows_0 = n_rows
+        n_rows = n_cols
+        n_cols = n_rows_0
+
+    ###########################################################################
 
     # figure
-    fig = plt.figure(figsize=(23*1.5, 20*1.5))
+    fig = plt.figure(figsize=(width, height))
 
     gs = gridspec.GridSpec(n_rows, n_cols, wspace=0, hspace=0)
     gr, gc = 0, 0
@@ -996,6 +1047,15 @@ def plot_matrix_grafiti(swan_wrap, var_name, storm_track_list=[],
         if gc >= n_cols:
             gc = 0
             gr += 1
+
+    ###########################################################################
+#    if gc <= n_cols: 
+#        while gc < n_cols:
+#            print(gc)
+#            #ax = plt.subplot(gs[gr, gc])
+#           # ax.axis('off')
+#            gc += 1
+    ###########################################################################
 
     cbar_ax = fig.add_axes([pax_l.x0, pax_l.y0-0.05, pax_r.x1 - pax_l.x0, 0.02])
     cb = fig.colorbar(pc, cax=cbar_ax, orientation='horizontal')

@@ -13,8 +13,9 @@ import os.path as op
 import shutil
 
 from . import geo
-from . import io
+from . import vortex
 from . import storms
+from . import io
 from . import wrap
 from . import plots
 

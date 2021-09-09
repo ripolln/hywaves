@@ -34,13 +34,14 @@ def gc_distance(lat1, lon1, lat2, lon2):
     return rng, az
 
 def shoot(lon, lat, azimuth, maxdist=None):
-    """Shooter Function
+    """
+    Shooter Function
     Original javascript on http://williams.best.vwh.net/gccalc.htm
     Translated to python by Thomas Lecocq
     """
     glat1 = lat * np.pi / 180.
     glon1 = lon * np.pi / 180.
-    s = maxdist / 1.852         # from n mi to km
+    s = maxdist / 1.852         # from km to n mi
     faz = azimuth * np.pi / 180.
 
     EPS= 0.00000000005
@@ -118,4 +119,74 @@ def geo_distance_azimuth(lat_matrix, lon_matrix, lat_point, lon_point):
             )
 
     return arcl, azi
+
+def geo_distance_cartesian(y_matrix, x_matrix, y_point, x_point):
+    '''
+    Returns cartesian distance between y,x matrix and y,x point
+    '''
+
+    dist = np.zeros(y_matrix.shape) * np.nan
+
+    sh1, sh2 = y_matrix.shape
+
+    for i in range(sh1):
+        for j in range(sh2):
+            dist[i,j] = sqrt((y_point - y_matrix[i][j])**2 + (x_point - x_matrix[i][j])**2)
+
+    return dist
+
+def degC2degN(degC):
+    '''
+    Converts a wind direction on a unit circle (degrees cartesian) to
+    a direction in nautical convention (degrees north).
+
+    Angle in a unit circle:
+    The angle between the horizontal east (E) and the head (pointing outwards), counter-clockwise
+
+                ^ N (90)
+                |
+    W (180) <~~   ~~> E (0)
+                |
+                v S (270)
+
+    Angle in nautical convention:
+    The angle between the vertical up (N) and the tail (pointing inwards), clockwise
+
+                | N (0)
+                v
+    W (270) ~~>   <~~ E (90)
+                ^
+                | S (180)
+    '''
+    degN = np.mod(-degC + 270, 360)
+
+    return degN
+
+def degN2degC(degN):
+    '''
+    Converts a wind direction in nautical convention (degrees north) to a
+    a direction on a unit circle (degrees cartesian).
+    '''
+    degC = np.mod(-degN + 270, 360)
+
+    return degC
+
+def GeoAzimuth(lat1, lon1, lat2, lon2):
+    'Returns geodesic azimuth between point1 and point2'
+
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+
+    az = atan2(
+        cos(lat2) * sin(lon2-lon1),
+        cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(lon2-lon1)
+    )
+    if lat1 <= -pi/2: az = 0
+    if lat2 >=  pi/2: az = 0
+    if lat2 <= -pi/2: az = pi
+    if lat1 >=  pi/2: az = pi
+
+    az = az % (2*pi)
+    az = degrees(az)
+
+    return az
 
