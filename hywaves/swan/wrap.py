@@ -314,6 +314,50 @@ class SwanWrap(object):
 
         bash_cmd(cmd)
 
+    def extract_output(self, case_ini=None, case_end=None, mesh=None,
+                       var_name=None, concat=True):
+        '''
+        exctract output from stationary and non stationary cases
+        (it is possible to choose which cases to extract)
+
+        var_name option allow for one unique variable extraction
+
+        concat - True to  return xarray.Dataset with dimension "case" added
+        else return list of xarray.Dataset (adds "case" value to each output)
+        '''
+
+        # select main or nested mesh
+        if mesh == None: mesh = self.proj.mesh_main
+
+        # get sorted execution folders
+        run_dirs = self.get_run_folders()
+        cs_ix = range(0, len(run_dirs))
+        if (case_ini != None) & (case_end != None):
+            run_dirs = run_dirs[case_ini:case_end]
+            cs_ix = range(case_ini, case_end)
+
+        # exctract output case by case and concat in list
+        l_out = []
+        for c, p_run in zip(cs_ix, run_dirs):
+
+            # read output file
+            xds_case_out = self.io.output_case(p_run, mesh)
+
+            # optional chose variable
+            if var_name != None:
+                xds_case_out = xds_case_out[[var_name]]
+
+            # store case id
+            xds_case_out['case'] = c
+
+            l_out.append(xds_case_out)
+
+        if concat:
+            return(xr.concat(l_out, dim='case'))
+
+        else:
+            return(l_out)
+
 
 class SwanWrap_STAT(SwanWrap):
     'SWAN numerical model wrap for STATIONARY multi-case handling'
@@ -338,32 +382,6 @@ class SwanWrap_STAT(SwanWrap):
             # build stat case 
             case_id = '{0:04d}'.format(ix)
             self.io.build_case(case_id, ws)
-
-    def extract_output(self, mesh=None):
-        '''
-        exctract output for swan stationary cases
-
-        return xarray.Dataset (uses new dim "case" to join output)
-        '''
-
-        # select main or nested mesh
-        if mesh == None: mesh = self.proj.mesh_main
-
-        # get sorted execution folders
-        run_dirs = self.get_run_folders()
-
-        # exctract output case by case and concat in list
-        l_out = []
-        for p_run in run_dirs:
-
-            # read output file
-            xds_case_out = self.io.output_case(p_run, mesh)
-            l_out.append(xds_case_out)
-
-        # concatenate xarray datasets (new dim: case)
-        xds_out = xr.concat(l_out, dim='case')
-
-        return(xds_out)
 
     def extract_output_points(self, mesh=None):
         '''
@@ -432,45 +450,6 @@ class SwanWrap_NONSTAT(SwanWrap):
                 make_waves=make_waves, make_winds=make_winds,
                 make_levels=make_levels,
             )
-
-    def extract_output(self, case_ini=None, case_end=None, mesh=None,
-                       var_name=None):
-        '''
-        exctract output from non stationary cases
-        (it is possible to choose which cases to extract)
-
-        var_name option allow for one unique variable extraction
-
-        return list of xarray.Dataset (adds "case" value to each output)
-        '''
-
-        # select main or nested mesh
-        if mesh == None: mesh = self.proj.mesh_main
-
-        # get sorted execution folders
-        run_dirs = self.get_run_folders()
-        cs_ix = range(0, len(run_dirs))
-        if (case_ini != None) & (case_end != None):
-            run_dirs = run_dirs[case_ini:case_end]
-            cs_ix = range(case_ini, case_end)
-
-        # exctract output case by case and concat in list
-        l_out = []
-        for c, p_run in zip(cs_ix, run_dirs):
-
-            # read output file
-            xds_case_out = self.io.output_case(p_run, mesh)
-
-            # optional chose variable
-            if var_name != None:
-                xds_case_out = xds_case_out[[var_name]]
-
-            # store case id
-            xds_case_out['case'] = c
-
-            l_out.append(xds_case_out)
-
-        return(l_out)
 
     def extract_output_spec(self, case_ini=None, case_end=None, mesh=None,
                             var_name=None):
