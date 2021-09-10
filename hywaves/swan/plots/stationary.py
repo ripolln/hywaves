@@ -14,11 +14,13 @@ from .config import _faspect, _fsize, _fdpi
 
 def axplot_var_map(ax, XX, YY, vv, vd,
                    quiver=True, np_shore=np.array([]),
-                   vmin=None, vmax=None):
+                   vmin=None, vmax=None, cmap=None,
+                   remove_axis=False):
     'plot 2D map with variable data'
 
     # parameters
-    cmap = plt.get_cmap('seismic')
+    if cmap == None:
+        cmap = plt.get_cmap('seismic')
 
     # cplot v lims
     if vmin == None: vmin = vv.nanmin()
@@ -56,11 +58,17 @@ def axplot_var_map(ax, XX, YY, vv, vd,
         ax.set_xlim(XX[0,0], XX[0,-1])
         ax.set_ylim(YY[0,0], YY[-1,0])
 
+    if remove_axis:
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+
     # return last pcolormesh
     return pm
 
-def scatter_maps(xds_out, var_list=[], n_cases=None, quiver=True, var_limits={},
-                 np_shore=np.array([])):
+def scatter_maps(xds_out, var_list=[], n_cases=None, n_cols=None, n_rows=None,
+                 quiver=True, var_limits={}, np_shore=np.array([]),
+                 figsize=None):
     '''
     scatter plots stationary SWAN execution output for first "n_cases"
 
@@ -76,17 +84,42 @@ def scatter_maps(xds_out, var_list=[], n_cases=None, quiver=True, var_limits={},
 
     # TODO improve xticks, yticks 
     # TODO legend box with info ?
-    # TODO diff colormap with diff variables
 
     # number of cases
     if n_cases == None:
         n_cases = len(xds_out.case.values)
 
     # get number of rows and cols for gridplot
-    n_cols, n_rows = GetBestRowsCols(n_cases)
+    if n_rows == None or n_cols == None:
+        n_cols, n_rows = GetBestRowsCols(n_cases)
+
+    # figure size
+    if figsize == None:
+        figsize = (_fsize*_faspect, _fsize*_faspect),
 
     # allowed vars
-    avs =['Hsig', 'Tm02', 'Dspr'] #, 'TPsmoo']
+    avs = ['Hsig', 'Tm02', 'Dspr', 'TPsmoo', 'Dir', 'Tp']
+
+    # colormap dictionary
+    cmap_dict = {
+        'Dir': 'twilight_shifted',
+        'Hsig': 'RdBu_r',
+        'Tm02': 'magma_r',
+        'Tpsmoo': 'magma_r',
+        'Tp': 'magma_r',
+        'Dspr': 'rainbow',
+    }
+
+    # TODO check samoa project then delete
+    #    if wind:
+    #        if vn =='Hsig': 
+    #            cmap='inferno_r'
+    #    else:
+    #        if vn =='Hsig': 
+    #            cmap='RdBu_r'
+    #    if vn== 'count_parts':
+    #        cmap='rainbow'
+
 
     # variable list 
     if var_list == []:
@@ -111,7 +144,7 @@ def scatter_maps(xds_out, var_list=[], n_cases=None, quiver=True, var_limits={},
             nrows=n_rows, ncols=n_cols,
             sharex=True, sharey=True,
             constrained_layout=False,
-            figsize=(_fsize*_faspect, _fsize*_faspect),
+            figsize=figsize,
         )
 
         fig.subplots_adjust(wspace=0, hspace=0)
@@ -131,15 +164,17 @@ def scatter_maps(xds_out, var_list=[], n_cases=None, quiver=True, var_limits={},
             out_case = xds_out.isel(case=ix)
 
             # variable and direction 
-            vv = out_case[vn].values[:].T
-            vd = out_case['Dir'].values[:].T
+            vv = out_case[vn].values[:]
+            vd = out_case['Dir'].values[:]
 
             # plot variable times
             ax = axs[gr, gc]
             pm = axplot_var_map(
                 ax, XX, YY, vv, vd,
                 quiver=quiver, np_shore=np_shore,
-                vmin=vmin, vmax=vmax
+                vmin=vmin, vmax=vmax,
+                cmap = cmap_dict[vn],
+                remove_axis = True,
             )
 
             # row,col counter
@@ -150,13 +185,13 @@ def scatter_maps(xds_out, var_list=[], n_cases=None, quiver=True, var_limits={},
 
 
         # add custom common axis labels
-        fig.text(0.5, 0.04, xlab, ha='center')
-        fig.text(0.04, 0.5, ylab, va='center', rotation='vertical')
+        fig.text(0.5, 0.04, xlab, ha='center', fontsize=15)
+        fig.text(0.04, 0.5, ylab, va='center', rotation='vertical', fontsize=15)
 
         # add custom common colorbar
         cbar_ax = fig.add_axes([0.93, 0.11, 0.02, 0.77])
         fig.colorbar(pm, cax=cbar_ax)
-        cbar_ax.set_ylabel(vn)
+        cbar_ax.set_ylabel(vn, fontsize=15)
 
 
         l_figs.append(fig)
