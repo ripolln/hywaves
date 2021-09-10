@@ -110,17 +110,6 @@ def scatter_maps(xds_out, var_list=[], n_cases=None, n_cols=None, n_rows=None,
         'Dspr': 'rainbow',
     }
 
-    # TODO check samoa project then delete
-    #    if wind:
-    #        if vn =='Hsig': 
-    #            cmap='inferno_r'
-    #    else:
-    #        if vn =='Hsig': 
-    #            cmap='RdBu_r'
-    #    if vn== 'count_parts':
-    #        cmap='rainbow'
-
-
     # variable list 
     if var_list == []:
         var_list = dict(xds_out.variables).keys()
