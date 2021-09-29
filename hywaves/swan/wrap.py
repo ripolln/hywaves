@@ -9,6 +9,7 @@ import sys
 
 import numpy as np
 import xarray as xr
+import glob
 
 # SWAN STAT LIBRARY
 from .io import SwanIO_STAT, SwanIO_NONSTAT
@@ -239,7 +240,7 @@ class SwanWrap(object):
 
         # TODO: will find previously generated cases... fix it 
 
-        ldir = sorted(os.listdir(self.proj.p_cases))
+        ldir = sorted(glob.glob(op.join(self.proj.p_cases, '*')))
         fp_ldir = [op.join(self.proj.p_cases, c) for c in ldir]
 
         return [p for p in fp_ldir if op.isdir(p)]
@@ -422,7 +423,7 @@ class SwanWrap_NONSTAT(SwanWrap):
         super().__init__(swan_proj, SwanIO_NONSTAT)
 
     def build_cases(self, waves_event_list, storm_track_list=None,
-                    make_waves=True, make_winds=True, make_levels=True):
+                    make_waves=True, make_spec=False, make_winds=True, make_levels=True):
         '''
         generates all files needed for swan non-stationary multi-case execution
 
@@ -450,10 +451,31 @@ class SwanWrap_NONSTAT(SwanWrap):
             case_id = '{0:04d}'.format(ix)
             self.io.build_case(
                 case_id, wds, storm_track=sds,
-                make_waves=make_waves, make_winds=make_winds,
+                make_waves=make_waves, make_spec=make_spec, make_winds=make_winds,
                 make_levels=make_levels,
             )
+    
+    def build_spectral_cases(self, spec,
+                             make_waves=False, make_spec=True, make_winds=True, make_levels=False):
+        '''
+        generates all files needed for swan non-stationary multi-case execution
 
+        spec - time dependent spectral energy (xarray.Dataset)
+        also contains depth and wind (not storm track) variables
+        '''
+        
+        # make main project directory
+        self.io.make_project()
+
+        # one non-stationary case for each spectral time series
+        case_id = '{0:04d}'.format(0)
+        self.io.build_case(
+                case_id, spec, storm_track=None,
+                make_waves=make_waves, make_spec=make_spec, make_winds=make_winds,
+                make_levels=make_levels,
+        )        
+        
+        
     def extract_output_spec(self, case_ini=None, case_end=None, mesh=None,
                             var_name=None):
         '''
