@@ -454,7 +454,7 @@ class SwanWrap_NONSTAT(SwanWrap):
                 make_waves=make_waves, make_spec=make_spec, make_winds=make_winds,
                 make_levels=make_levels,
             )
-    
+
     def build_spectral_cases(self, spec,
                              make_waves=False, make_spec=True, make_winds=True, make_levels=False):
         '''
@@ -463,7 +463,7 @@ class SwanWrap_NONSTAT(SwanWrap):
         spec - time dependent spectral energy (xarray.Dataset)
         also contains depth and wind (not storm track) variables
         '''
-        
+
         # make main project directory
         self.io.make_project()
 
@@ -473,9 +473,8 @@ class SwanWrap_NONSTAT(SwanWrap):
                 case_id, spec, storm_track=None,
                 make_waves=make_waves, make_spec=make_spec, make_winds=make_winds,
                 make_levels=make_levels,
-        )        
-        
-        
+        )
+
     def extract_output_spec(self, case_ini=None, case_end=None, mesh=None,
                             var_name=None):
         '''
