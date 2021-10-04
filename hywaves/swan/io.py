@@ -206,15 +206,15 @@ def swn_bound_waves_nonstat(proj, waves_bnd):
 
 def swn_bound_spec_nonstat(proj, waves_bnd):
     'boundary waves (SPECTRA) .swn block'
-    
+
     t = ''
     for pic, ic in enumerate(waves_bnd):
         file = 'spectralfile_{0}.txt'.format(ic)
         t += "BOUN SIDE {0} CONstant FILE '{1}' {2}\n".format(ic, file, pic+1)
-    
+
     t += '$\n'
 
-    return t    
+    return t
 
 def swn_inp_levels_nonstat(proj, mesh, t0_iso, t1_iso):
     'input level files (NONSTAT) .swn block'
@@ -527,10 +527,10 @@ class SwanIO_NONSTAT(SwanIO):
         np.savetxt(save, data, header='TPAR', comments='', fmt='%8.4f %2.3f %2.3f %3.2f %3.1f')
         for i in bnd:
             su.copyfile(save, op.join(p_case, 'series_waves_{0}.dat'.format(i)))
-    
+
     def make_spectra_files(self, p_case, spectra, time_swan):
         'Generate spectral files (swan compatible)'
-        
+
         p_file_N = op.join(p_case, 'spectralfile_N.txt')
         p_file_E = op.join(p_case, 'spectralfile_E.txt')
         p_file_S = op.join(p_case, 'spectralfile_S.txt')
@@ -565,9 +565,9 @@ class SwanIO_NONSTAT(SwanIO):
         t += "VaDens \t variance densities in m2/Hz/degr\n"
         t += "m2/Hz/degr                              unit\n"
         t += "-0.9900E+02                          exception value\n"
-        
+
         for timesim in range(len(spectra.time)):
-            
+
             spec = spectra.isel(time=timesim)
             t += time_swan[timesim]
 
@@ -589,8 +589,7 @@ class SwanIO_NONSTAT(SwanIO):
                     f.write(t)
         with open(p_file_W, 'w') as f:
                     f.write(t)
-                
-    
+
     def make_wind_files(self, p_case, waves_event, mesh):
         '''
         Generate event wind mesh files (swan compatible)
@@ -874,6 +873,12 @@ class SwanIO_NONSTAT(SwanIO):
         waves_event - waves event time series (pandas.Dataframe)
         also contains level, tide and wind (not storm track) variables
         [n x 8] (hs, per, dir, spr, U10, V10, level, tide)
+        waves_event index has to be a times array
+
+        if make_spec=True, waves_event is the spectral energy,
+        a xarray.Dataset with 3 dimensions: dir, freq, time.
+        In this case, it will need an aux. variable named "index" that repeat time values.
+        ej: waves_event['index'] = waves_event.time
 
         storm_track - None / storm track time series (pandas.Dataframe)
         storm_track generated winds have priority over waves_event winds
@@ -882,8 +887,8 @@ class SwanIO_NONSTAT(SwanIO):
 
         # parse pandas time index to swan iso format
         swan_iso_fmt = '%Y%m%d.%H%M'
-        time_swan = pd.to_datetime(waves_event.time.values).strftime(swan_iso_fmt).values[:]
-        
+        time_swan = pd.to_datetime(waves_event.index.values).strftime(swan_iso_fmt).values[:]
+
         # project computational and winds_input delta time
         compute_deltc = self.proj.params['compute_deltc']
         wind_deltinp = self.proj.params['wind_deltinp']
@@ -900,10 +905,10 @@ class SwanIO_NONSTAT(SwanIO):
 
         # make wave files
         if make_waves: self.make_wave_files(p_case, waves_event, time_swan, waves_bnd)
-        
+
         # make spectra files
         if make_spec: self.make_spectra_files(p_case, waves_event, time_swan)
-            
+
         # make wind files
         if make_winds:
 
@@ -918,7 +923,7 @@ class SwanIO_NONSTAT(SwanIO):
                     print('CASE {0} - compute_deltc, wind_deltinp override with storm track: {1}'.format(
                         case_id, compute_deltc))
             else:
-                self.make_wind_files(p_case, waves_event.to_dataframe(), self.proj.mesh_main)
+                self.make_wind_files(p_case, waves_event, self.proj.mesh_main)
 
         # make output points file
         self.make_out_points(op.join(p_case, 'points_out.dat'))
@@ -964,7 +969,7 @@ class SwanIO_NONSTAT(SwanIO):
                 make_winds = make_winds,
                 make_levels = make_levels,
             )
-            
+
     def outmat2xr(self, p_mat):
         'read output .mat file and returns xarray.Dataset'
 
