@@ -97,6 +97,59 @@ def Normalized_Distance(M, D, ix_scalar, ix_directional):
     dist = np.sum(dif**2,1)
     return dist
 
+def Normalized_Distance_weighted(M, D, ix_scalar, ix_directional, ix_weights):
+    '''
+    Normalized distance between rows in M and D
+
+    M - numpy array
+    D - numpy array
+    ix_scalar - scalar columns indexes
+    ix_directional - directional columns indexes
+    ix_weights - scalar columns weight factors
+    '''
+
+    dif = np.zeros(M.shape)
+
+    # scalar
+    for ix in ix_scalar:
+        dif[:,ix] = D[:,ix] - M[:,ix]
+
+    # directional
+    for ix in ix_directional:
+        ab = np.absolute(D[:,ix] - M[:,ix])
+        dif[:,ix] = np.minimum(ab, 2*np.pi - ab)/np.pi
+        
+    # weighted distances
+    for i,ix in enumerate(ix_weights):
+        dif[:,i] *= ix
+
+    dist = np.sum(dif**2,1)
+    return dist
+
+def nearest_indexes_weighted(data_q, data, ix_scalar, ix_directional, ix_weights):
+    '''
+    for each row in data_q, find nearest point in data and store index.
+
+    Returns array of indexes of each nearest point to all entries in data_q
+    '''
+
+    # normalize scalar and directional data 
+    data_norm, minis, maxis = Normalize(data, ix_scalar, ix_directional)
+    data_q_norm, _, _ = Normalize(
+        data_q, ix_scalar, ix_directional,
+        minis=minis, maxis=maxis
+    )
+
+    # compute distances, store nearest distance index
+    ix_near = np.zeros(data_q_norm.shape[0]).astype(int)
+    for c, dq in enumerate(data_q_norm):
+        ddq = np.repeat([dq], data_norm.shape[0], axis=0)
+        D = Normalized_Distance_weighted(data_norm, ddq, 
+                                         ix_scalar, ix_directional, ix_weights)
+        ix_near[c] = np.argmin(D)
+
+    return ix_near
+
 def nearest_indexes(data_q, data, ix_scalar, ix_directional):
     '''
     for each row in data_q, find nearest point in data and store index.

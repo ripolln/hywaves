@@ -190,3 +190,17 @@ def GeoAzimuth(lat1, lon1, lat2, lon2):
 
     return az
 
+def GeoDistance(lat1, lon1, lat2, lon2):
+    'Returns great circle distance between points in degrees'
+
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+
+    a = sin((lat2-lat1)/2)**2 + cos(lat1) * cos(lat2) * sin((lon2-lon1)/2)**2;
+    if a < 0: a = 0
+    if a > 1: a = 1
+
+    r = 1
+    rng = r * 2 * atan2(sqrt(a), sqrt(1-a))
+    rng = degrees(rng)
+
+    return rng

@@ -8,7 +8,7 @@ import xarray as xr
 from datetime import timedelta
 from numpy import polyfit
 
-from .geo import shoot, gc_distance
+from .geo import shoot, gc_distance, GeoDistance
 
 
 
@@ -49,6 +49,7 @@ d_vns_idcenter = {
         'WELLINGTON':   'wellington',
         'NADI':         'nadi',
         'WMO':          'wmo',
+#        'FORECAST':     'forecast',
         }
 
 # dictionary of basin codes (for calling centers with official data)
@@ -63,6 +64,10 @@ d_vns_basinscenter = {
         'WELLINGTON':   ['SP','SI'],
         'NADI':         ['SP'],
         'WMO':          ['NA','SA','EP','WP','SP','NI','SI'],
+        'FORECAST':     ['AL','LS','EP','CP','WP','IO','SH'],
+                        # north atlantic [100-0W], south atlantic [], 
+                        # east/central/west NP, [100-180E, 180-140W, 140-80W], 
+                        # north indian [40-100E], southern hemisphere [20E-120W]
         }
 
 # dictionary of color codes
@@ -92,6 +97,9 @@ def get_dictionary_center(d_vns_idcenter, center='WMO'):
 
         # get center name
         source = d_vns_idcenter[center]
+        dict_pressure = source+'_pres'
+        dict_maxwinds = source+'_wind'
+        dict_basin = 'basin'
         
         # lon, lat
         if source=='wmo':   dict_lon, dict_lat = 'lon','lat'
@@ -102,15 +110,22 @@ def get_dictionary_center(d_vns_idcenter, center='WMO'):
             dict_radii = source+'_rmw'
         else: dict_radii = None
             
+#        if source=='forecast':  
+#            dict_lon, dict_lat = 'longitude','latitude'
+#            dict_pressure = 'pressure'
+#            dict_maxwinds = 'maxwinds'
+#            dict_radii = 'rmw'
+#            dict_basin = 'Basin'
+            
         # variables dictionary
         d_vns = {
             'source':       center,
-            'basin':        'basin',
+            'basin':        dict_basin,
             'time':         'time',
             'longitude':    dict_lon,
             'latitude':     dict_lat,
-            'pressure':     source+'_pres',
-            'maxwinds':     source+'_wind',
+            'pressure':     dict_pressure,
+            'maxwinds':     dict_maxwinds,
             'rmw':          dict_radii,
         }
     
@@ -198,8 +213,10 @@ def check_ibtracs_coefs(d_vns_idcenter):
     filename = 'ibtracs_coef_pmin_vmax.nc'
     p_coef = op.join(op.dirname(op.realpath(__file__)), 'resources', filename)
     
-    if p_coef:      xds_coef = xr.open_dataset(p_coef)
-    if not p_coef:  
+    if op.isfile(p_coef):    xds_coef = xr.open_dataset(p_coef)
+    else:  
+#    if p_coef:      xds_coef = xr.open_dataset(p_coef)
+#    if not p_coef:  
         print('Calculating Pmin-Vmax fitting coefficients...')
         xds_coef = ibtracs_fit_pmin_vmax(d_vns_idcenter, p_coef)
         print('Done \n')
@@ -386,7 +403,34 @@ def get_vmean(lat1, lon1, lat2, lon2, deltat):
 
     return gamma_h, vmean, vu, vy    # [º], [km/h]
 
-def historic_track_preprocessing(xds, center='WMO', database_on=False):
+def wind2pres(xds_coef, st_wind, st_center, st_basin):
+    '''
+    xds_coef    - (xarray.Dataset) fitting coefficients for Pmin-Vmax
+    st_wind     - storm maxwinds [kt, 1-min avg]
+    st_center   - storm center (RSMC, ibtracs)
+    st_basin    - storm basin (NA,SA,WP,EP,SP,NI,SI)
+    
+    returns:  empirical maximum wind speed [kt, 1-min avg]
+    '''
+    
+    pmin_pred = []
+    for iwind in st_wind:
+        
+        # select Pmin-Wmax coefficients
+        coeff = xds_coef.sel(center=st_center, basin=st_basin
+                             ).coef.values[:]
+        
+        # aisle equation
+        coeff[-1] -= iwind
+        
+        # pressure root
+        pmin_pred.append(np.real(np.roots(coeff))[
+                np.where(np.imag(np.roots(coeff))==0)[0][0]])
+    
+    return np.array(pmin_pred)    # [mbar]
+
+def historic_track_preprocessing(xds, center='WMO', database_on=False, 
+                                 forecast_on=False):
     '''
     xds         - (xarray.Dataset) historic storm track dataset (storm dim)
     center      - ibtracs center code 
@@ -417,8 +461,10 @@ def historic_track_preprocessing(xds, center='WMO', database_on=False):
     ytime = xds[nm_tim].values         # dates format: datetime64
 
 #    print(xds.stormid.values, ytime.size, ytime)
+#    print(1, ytime.size, ytime)
 
     # remove NaTs (time)
+#    if 'dist2land' in xds.keys(): 
     ydist   = xds['dist2land'].values[~np.isnat(ytime)] # distance to land [km]
     ybasin  = xds[nm_bas].values[~np.isnat(ytime)]      # basin
     ylat_tc = xds[nm_lat].values[~np.isnat(ytime)]      # latitude
@@ -429,9 +475,67 @@ def historic_track_preprocessing(xds, center='WMO', database_on=False):
     ytime   = ytime[~np.isnat(ytime)]
 
 #    print(xds.stormid.values, ytime.size, ytime, ycpres.size, ycpres)
+#    print(2, ytime.size, ytime, ycpres.size, ycpres)
+    
+    # remove common NaNs (pressure & wind)
+    posnonan_p_w = np.unique(np.concatenate((np.argwhere(~np.isnan(ycpres)), 
+                                             np.argwhere(~np.isnan(ywind)))))
+    ytime        = ytime[posnonan_p_w]
+#    if 'dist2land' in xds.keys():   
+    ydist        = ydist[posnonan_p_w]
+    ybasin       = ybasin[posnonan_p_w]
+    ylat_tc      = ylat_tc[posnonan_p_w]
+    ylon_tc      = ylon_tc[posnonan_p_w]
+    ycpres       = ycpres[posnonan_p_w]
+    ywind        = ywind[posnonan_p_w]
+    if nm_rmw:      yradii = yradii[posnonan_p_w]
+    if not nm_rmw:  yradii = np.full(ycpres.size, np.nan)  #[np.nan] * ycpres.size
+    
+#    print(3, ytime.size, ytime, ycpres.size, ycpres, ywind, ybasin)
+
+    ###########################################################################
+    # forecast input may lack pressure
+    if forecast_on:
+        
+        # convert basin ids (IBTrACS equivalent)
+        dict_basin_forecast = {
+                'AL': 'NA',
+                'LS': 'SA',
+                'EP': 'EP',
+                'CP': 'WP',
+                'WP': 'WP',
+                'SH': 'SP',
+                'IO': 'NI',
+                }
+        ybasin = np.array([dict_basin_forecast[ybas] for ybas in ybasin])
+        ybasin[(ylat_tc<0) & (ylon_tc<135)] = 'SI'
+#        print(4, 'basin', ycpres.size, ycpres, ywind, ybasin)
+#        print(np.isnan(ycpres).any())
+            
+#        posnan_p_w = np.intersect1d(np.argwhere(np.isnan(ycpres)), 
+#                                    np.argwhere(np.isnan(ywind)))
+#        np.intersect1d(np.argwhere(np.isnan(ycpres)),
+#                          np.argwhere(np.isnan(ywind))).size > 0:
+        if np.isnan(ycpres).any():
+            
+            # ibtracs fitting coefficients path
+            p_coef = op.join(op.dirname(op.realpath(__file__)), 'resources', 
+                             'ibtracs_coef_pmin_vmax.nc')
+            xds_coef = xr.open_dataset(p_coef)
+    
+            # fill pressure gaps
+            ycpres[np.isnan(ycpres)] = wind2pres(xds_coef, 
+                                                 ywind[np.isnan(ycpres)], 
+                                                 center, ybasin[0])
+#            print(4, 'gaps', ycpres.size, ycpres, ywind, ybasin)
+        ybasin = np.array([np.bytes_(ybas) for ybas in ybasin])
+
+    
+    ###########################################################################
 
     # remove NaNs (pressure)
     ytime        = ytime[~np.isnan(ycpres)]
+#    if 'dist2land' in xds.keys():   
     st_dist2land = ydist[~np.isnan(ycpres)]
     ybasin       = ybasin[~np.isnan(ycpres)]
     st_lat       = ylat_tc[~np.isnan(ycpres)]
@@ -441,6 +545,7 @@ def historic_track_preprocessing(xds, center='WMO', database_on=False):
     if nm_rmw:      st_rmw = yradii[~np.isnan(ycpres)]
     if not nm_rmw:  st_rmw = np.full(st_pres.size, np.nan)  #[np.nan] * st_pres.size
     
+#    print(5, ycpres.size, ycpres, ywind)
 #    print(d_vns)
 #    print(st_pres, st_rmw)
 #    print(type(st_pres), type(st_rmw))
@@ -467,6 +572,7 @@ def historic_track_preprocessing(xds, center='WMO', database_on=False):
 #    print(st_rmw, type(st_rmw), pos)
     
     ytime        = ytime[pos]
+#    if 'dist2land' in xds.keys():   
     st_dist2land = st_dist2land[pos]
     ybasin       = ybasin[pos]
     st_lat       = st_lat[pos]
@@ -474,6 +580,7 @@ def historic_track_preprocessing(xds, center='WMO', database_on=False):
     st_pres      = st_pres[pos]
     st_wind      = st_wind[pos]
     st_rmw       = st_rmw[pos]
+#    print(6, ycpres.size, ycpres, ywind)
 
 #    print(xds.stormid.values, ytime.size, ytime, st_pres.size, st_pres)
 #    print(hr, pos_out.ravel(), pos_in.ravel(), pos.ravel(), type(pos.ravel()), type(pos), type(pos[0]), ytime)
@@ -547,7 +654,8 @@ def historic_track_preprocessing(xds, center='WMO', database_on=False):
     
         df['center']        = center
         df['basin']         = st_basin
-        df['dist2land']     = st_dist2land
+        if 'dist2land' in xds.keys():   df['dist2land'] = st_dist2land
+        else:                           df['dist2land'] = np.nan
         df['longitude']     = st_lon
         df['latitude']      = st_lat
         df['move']          = st_move
@@ -786,6 +894,26 @@ def historic_track_interpolation(df, dt_comp, y0=None, x0=None,
     
     return st, time_input
 
+#def track_triming(st, lat00, lon00, lat01, lon01):
+#    '''
+#    st       - (pandas.Dataframe) storm track variables
+#    lon,lat  - geographical limits of target domain
+#    
+#    all storm coordinates outside the limits of target domain are discarded
+#    
+#    returns:  st_trim (pandas.Dataframe) 
+#    '''
+#    
+#    lo, la = st.lon.values[:], st.lat.values[:]
+#    
+#    # select track coordinates within the target domain area
+#    st_trim = st.iloc[(lo<=lon01) & (lo>=lon00) & (la<=lat01) & (la>=lat00)]
+#    
+#    # add metadata
+#    st_trim.attrs = st.attrs
+#
+#    return st_trim
+
 def track_triming(st, lat00, lon00, lat01, lon01):
     '''
     st       - (pandas.Dataframe) storm track variables
@@ -801,11 +929,161 @@ def track_triming(st, lat00, lon00, lat01, lon01):
     # select track coordinates within the target domain area
     st_trim = st.iloc[(lo<=lon01) & (lo>=lon00) & (la<=lat01) & (la>=lat00)]
     
+    # get min/max times within the area
+    tmin = np.min(st_trim.index.values)
+    tmax = np.max(st_trim.index.values)
+    
+    # select all the time window
+    st_trim = st.iloc[(st.index>=tmin) & (st.index<=tmax)]
+    
     # add metadata
     st_trim.attrs = st.attrs
 
     return st_trim
 
+def track_triming_circle(st, plon, plat, radii):
+    '''
+    st        - (pandas.Dataframe) storm track variables
+    plon,plat - circle center
+    radii     - circle domain
+    
+    all storm coordinates outside the limits of target domain are discarded
+    
+    returns:  st_trim (pandas.Dataframe) 
+    '''
+    
+    lo, la = st.lon.values[:], st.lat.values[:]
+    
+    # stack storm longitude, latitude
+    lonlat_s = np.column_stack((lo, la))
+    
+    # calculate geodesic distance (degree)
+    geo_dist = []
+    for lon_ps, lat_ps in lonlat_s:
+        geo_dist.append(GeoDistance(lat_ps, lon_ps, plat, plon))
+    geo_dist = np.asarray(geo_dist)
+    
+    # find storm inside circle and calculate parameters
+    if (geo_dist < radii).any() & (geo_dist.size > 1):
+
+        # storm inside circle
+        ix_in = np.where(geo_dist < radii)[0][:]
+        # select track coordinates within the target domain area
+        st_trim = st.iloc[ix_in]
+    
+    else:   st_trim = st.iloc[st.lat.values[:]>90]
+
+    # get min/max times within the area
+    tmin = np.min(st_trim.index.values)
+    tmax = np.max(st_trim.index.values)
+    
+    # select all the time window
+    st_trim = st.iloc[(st.index>=tmin) & (st.index<=tmax)]
+    
+    # add metadata
+    st_trim.attrs = st.attrs
+        
+    return st_trim
+
+def stopmotion_trim_circle(df_seg, plon, plat, radii):
+    '''
+    df_seg    - (pandas.Dataframe) stopmotion segments
+    plon,plat - circle center
+    radii     - circle domain
+    
+    all storm coordinates outside the limits of target domain are discarded
+    
+    returns:  st_trim (pandas.Dataframe) 
+    '''
+    
+    lo0, la0 = df_seg.lon_i.values[:], df_seg.lat_i.values[:]
+    lo1, la1 = df_seg.lon_t.values[:], df_seg.lat_t.values[:]
+    
+    # stack storm longitude, latitude
+    lonlat_s0 = np.column_stack((lo0, la0))
+    lonlat_s1 = np.column_stack((lo1, la1))
+    
+    # calculate geodesic distance (degree)
+    geo_dist0, geo_dist1 = [], []
+    for lon_ps, lat_ps in lonlat_s0:
+        geo_dist0.append(GeoDistance(lat_ps, lon_ps, plat, plon))
+    geo_dist0 = np.asarray(geo_dist0)
+    for lon_ps, lat_ps in lonlat_s1:
+        geo_dist1.append(GeoDistance(lat_ps, lon_ps, plat, plon))
+    geo_dist1 = np.asarray(geo_dist1)
+    
+    # get minimum distance of the two target endpoints
+    geo_dist = np.min((geo_dist0, geo_dist1), axis=0)
+    
+    # find storm inside circle and calculate parameters
+    if (geo_dist < radii).any() & (geo_dist.size > 1):
+
+        # storm inside circle
+        ix_in = np.where(geo_dist < radii)[0][:]
+        # select track coordinates within the target domain area
+        st_trim = df_seg.iloc[ix_in]
+    
+        # get min/max times within the area
+        tmin = np.min(st_trim.index.values)
+        tmax = np.max(st_trim.index.values)
+        
+        # select all the time window
+        st_trim = df_seg.iloc[(df_seg.index>=tmin) & (df_seg.index<=tmax)]
+        
+        # add metadata
+        st_trim.attrs = df_seg.attrs
+        
+    else:   # empty dataframe
+        st_trim = pd.DataFrame(columns = df_seg.columns)
+
+    return st_trim
+
+def track_extent(st, time_input, dt_comp, time_extent=48):
+    '''
+    Function to concatenate an additional simulation period to evaluate 
+    propagation of the wave directional spectra (under no wind forcing)
+    
+    st           - (pandas.Dataframe) storm track variables
+    time_input   - (numpy.ndarray) time coordinates
+    dt_comp      - (float) swan timestep [minutes]
+    time_extent  - (float) time to extent dataframe with NaNs [hours]
+    
+    all storm coordinates outside the limits of target domain are discarded
+    
+    returns:  st_new (pandas.Dataframe) 
+    '''
+    
+    # total simulation period (hours): storm + propagation
+    time_storm = (time_input[-1]-time_input[0]).astype(
+                    'timedelta64[h]') / np.timedelta64(1,'h')
+    T = time_storm + time_extent
+
+    # original track period
+    size_ini = st.index.size
+    date_ini = st.index[0]
+
+    # total simulation period
+    size_new = int(T * 60 / dt_comp)
+    time_input_new = pd.date_range(date_ini, periods=size_new, 
+                                   freq='{0}MIN'.format(dt_comp))
+    st_new = pd.DataFrame(index=time_input_new,
+                          columns=list(st.keys()))
+
+    # combine
+    st_new.values[:size_ini,:] = st.values
+    if st.attrs['x0']:  st_new.x0 = st.attrs['x0']
+    if st.attrs['y0']:  st_new.y0 = st.attrs['y0']
+
+    # [OPTIONAL] override SWAN storm case computational delta time 
+    st_new.attrs['override_dtcomp'] = '{0} MIN'.format(dt_comp)
+
+    # generate wave event (empty)
+    we = pd.DataFrame(index=time_input_new, 
+                      columns=['hs', 't02', 'dir', 'spr', 'U10', 'V10'])
+    we['level'] = 0
+    we['tide'] = 0
+    
+    return st_new, we
 
 ###############################################################################
 # PARAMETERIZED storm tracks
@@ -938,3 +1216,143 @@ def track_site_parameters(step, pmin, vmean, delta, gamma,
             }
 
     return st
+
+###############################################################################
+# synthetic tracks
+    
+def nakajo_track_preprocessing(xds, center='WMO'):
+    '''
+    xds         - (xarray.Dataset) historic storm track dataset (storm dim)
+    
+    Synthetic track is preprocessed: remove NaT data, remove NaN data, 
+    longitude convention [0º-360º], time format, calculate vmean, 
+    get storm category (winds, rmw are not provided)
+    
+    returns:  df (pandas.Dataframe)
+    '''
+    
+    # get names of variables
+    nm_tim = 'time'
+    nm_lon = 'ylon_TC'
+    nm_lat = 'ylat_TC'
+    nm_prs = 'yCPRES'
+
+    # get var time
+    ytime = xds[nm_tim].values         # dates format: datetime64
+
+    # remove NaTs (time)
+    ylat_tc = xds[nm_lat].values[~np.isnat(ytime)]      # latitude
+    ylon_tc = xds[nm_lon].values[~np.isnat(ytime)]      # longitude
+    ycpres  = xds[nm_prs].values[~np.isnat(ytime)]      # pressure [mbar]
+    ytime   = ytime[~np.isnat(ytime)]
+
+    # remove common NaNs (pressure)
+    posnonan_p_w = np.unique(np.argwhere(~np.isnan(ycpres)))
+    ytime        = ytime[posnonan_p_w]
+    st_lat         = ylat_tc[posnonan_p_w]
+    st_lon         = ylon_tc[posnonan_p_w]
+    st_pres        = ycpres[posnonan_p_w]
+
+    ###########################################################################
+    # longitude convention: [0º,360º]
+    st_lon[st_lon<0] = st_lon[st_lon<0] + 360
+                             
+    # get basin
+    ybasin = np.empty(ytime.size, dtype="S10")
+    for i in range(ytime.size):
+        ilo, ila = st_lon[i], st_lat[i]
+        if (ila<0) & (ilo<135) & (ilo>20):      ybasin[i] = 'SI'
+        elif (ila<0) & (ilo>135) & (ilo<290):   ybasin[i] = 'SP'
+        elif (ila<0) & (ilo<20) & (ilo>290):    ybasin[i] = 'SA'
+        elif (ila>0) & (ilo>20) & (ilo<100):    ybasin[i] = 'NI'
+        elif (ila>0) & (ilo>100) & (ilo<180):    ybasin[i] = 'WP'
+        elif (ila>0) & (ilo>180) & (ilo<260):    ybasin[i] = 'EP'
+        elif (ila>0) & (ila<15) & (ilo>260) & (ilo<275):    ybasin[i] = 'EP'
+        else:    ybasin[i] = 'NA'
+    
+    ###########################################################################
+
+    # only when storm data available
+    if st_pres.size > 0:
+
+        # round dates to hour
+        round_to = 3600
+        st_time = []
+        for i in range(len(ytime)):
+            dt = ytime[i].astype('datetime64[s]').tolist()
+            seconds = (dt - dt.min).seconds
+            rounding = (seconds+round_to/2) // round_to * round_to
+            out = dt + timedelta(0, rounding-seconds, -dt.microsecond)
+            st_time.append(out)
+        st_time = np.asarray(st_time)
+    
+        # storm coordinates timestep [hours]
+        ts = (st_time[1:] - st_time[:-1])
+        ts = [ts[i].total_seconds() / 3600 for i in range(ts.size)]
+        ts.append(np.nan)
+    
+        # calculate Vmean
+        st_vmean, st_move = [], []
+        for i in range(0, len(st_time)-1):
+    
+            # consecutive storm coordinates
+            lon1, lon2 = st_lon[i], st_lon[i+1]
+            lat1, lat2 = st_lat[i], st_lat[i+1]
+    
+            # translation speed 
+            gamma_h, vel_mean, _, _ = get_vmean(lat1, lon1, lat2, lon2, ts[i])
+            st_vmean.append(vel_mean / 1.852)  # translation speed [km/h to kt]
+            st_move.append(gamma_h)            # forward direction [º]
+        st_vmean.append(np.nan)
+        st_move.append(np.nan)
+            
+        # mean value
+        vmean = np.nanmean(st_vmean)  # [kt]
+        
+        # storm category
+        categ = get_category(st_pres)
+        
+        # get basin string
+        st_basin = [str(c.decode('UTF-8')) for c in ybasin]
+        
+        # store storm variables
+        df = pd.DataFrame(index=st_time,
+                          columns=['center','basin','dist2land','longitude', \
+                                   'latitude','move','mean_velocity', \
+                                   'pressure','maxwinds','rmw','category', \
+                                   'timestep','storm_vmean']
+                          )
+    
+        df['center']        = center   # hypothesis winds 1-min
+        df['basin']         = st_basin
+        df['dist2land']     = np.nan
+        df['longitude']     = st_lon
+        df['latitude']      = st_lat
+        df['move']          = st_move
+        df['mean_velocity'] = st_vmean
+        df['pressure']      = st_pres
+        df['maxwinds']      = np.nan
+        df['rmw']           = np.nan
+        df['category']      = categ
+        df['timestep']      = ts
+        df['storm_vmean']   = vmean
+        
+        df.attrs = {
+            'dist2land':'km',
+            'velocity': 'kt',
+            'pressure': 'mbar',
+            'maxwinds': 'kt, 1-min average sustained winds (converted from X-min)',
+            'rmw':      'nmile',
+            'timestep': 'hour',
+                }
+        
+    else:
+        df = pd.DataFrame(index=[],
+                          columns=['center','basin','dist2land','longitude', \
+                                   'latitude','move','mean_velocity', \
+                                   'pressure','maxwinds','rmw','category', \
+                                   'timestep','storm_vmean']    
+                          )
+        
+    return df
+

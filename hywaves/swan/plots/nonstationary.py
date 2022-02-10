@@ -656,7 +656,7 @@ def plot_case_output(
     xds_out = swan_wrap.extract_output(
         case_ini=case, case_end=case+1,
         mesh=mesh,
-    )[0]
+    ).sel(case=case)#[0]
 
     # select time to plot
     xds_v = xds_out.isel(time=t_num)
@@ -756,7 +756,7 @@ def plot_case_output_grafiti(
     xds_out = swan_wrap.extract_output(
         case_ini=case, case_end=case+1,
         mesh=mesh,
-    )[0]
+    ).sel(case=case)#[0]
 
     # figure
     fig, (axs) = plt.subplots(
@@ -780,12 +780,11 @@ def plot_case_output_grafiti(
     vmin = float(xds_var.min().values)
 
     # grafiti
-    xds_var_max = xds_var.max(dim='time')
-    var_max = xds_var_max.values[:]
-
+    xds_var_max = xds_var.max(dim='time').values[:]
+    
     ccmap = custom_cmap(15, 'YlOrRd', 0.15, 0.9, 'YlGnBu_r', 0, 0.85)
     pm = axplot_var_map(
-        axs, X, Y, var_max,
+        axs, X, Y, xds_var_max,
         vmin = vmin, vmax = vmax,
         cmap = ccmap,
     )

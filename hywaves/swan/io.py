@@ -291,21 +291,21 @@ class SwanIO(object):
     def fix_partition_vars(self, xds_out):
         'read partitions variables from output .mat file and returns xarray.Dataset'
 
-        # partition variables keys
+        # partition variables keys
         partition_keys = ['HsPT', 'TpPT', 'DrPT', 'DsPT', 'WfPT', 'WlPT', 'StPT']
 
-        # output variables
+        # output variables
         vns = xds_out.variables
 
         for k in partition_keys:
             vps = sorted([v for v in vns if v.startswith(k)])
 
-            # skip if no partition key present
+            # skip if no partition key present
             if vps == []: continue
 
             cc = xr.concat([xds_out[v] for v in vps], 'partition',)
 
-            # drop splitted partition vars and add full partition var
+            # drop splitted partition vars and add full partition var
             for v in vps: xds_out = xds_out.drop_vars(v)
             xds_out[k] = cc
 
@@ -1005,6 +1005,7 @@ class SwanIO_NONSTAT(SwanIO):
 
         # add times dim values
         t0, dt_min = swn_info['TABLE_t0dt'], swn_info['TABLE_dtmin']
+        print(t0, dt_min)
         time_out = pd.date_range(t0, periods=len(xds_out.time), freq='{0}min'.format(dt_min))
         xds_out = xds_out.assign_coords(time=time_out)
 
@@ -1106,13 +1107,13 @@ class SwanIO_NONSTAT(SwanIO):
             # mount output to xarray.Dataset 
             return xr.Dataset(
                 {
-                    'lon_pts': (('point',), lon_points),
-                    'lat_pts': (('point',), lat_points),
-                    'spec': (('frequency', 'direction', 'point', 'time'), spec_out),
+                    'lon': (('point',), lon_points),
+                    'lat': (('point',), lat_points),
+                    'efth': (('freq', 'dir', 'point', 'time'), spec_out),
                 },
                 coords = {
-                    "frequency": freqs,
-                    "direction": dirs,
+                    "freq": freqs,
+                    "dir": dirs,
                     "time": times,
                 }
             )
