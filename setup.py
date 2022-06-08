@@ -45,7 +45,7 @@ setup(
     author_email     = hywaves.__contact__,
     url              = hywaves.__url__,
     license          = 'LICENSE.txt',
-    python_requires  = ">=3.7",
+    python_requires  = ">=3.6",
     install_requires = install_requires(),
     packages         = ['hywaves', 'hywaves.statistical', 'hywaves.wswan',
                         'hywaves.wswan.plots', 'hywaves.statistical.plots',
