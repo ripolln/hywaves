@@ -34,19 +34,24 @@ This toolbox includes a hybrid (metamodel) methodology to optimize this process:
 <a name="mc"></a>
 ## Main contents
 
-Numerical models
+SWAN Numerical model wrapper
 
-[swan](./hywaves/swan/): SWAN numerical model toolbox 
-- [io](./hywaves/swan/io.py): SWAN numerical model input/output operations
-- [wrap](./hywaves/swan/wrap.py): SWAN numerical model python wrap 
-- [geo](./hywaves/swan/geo.py): azimuth distance function
-- [storms](./hywaves/swan/storms.py): storm parameters function 
-- [plots](./hywaves/swan/plots/): plotting module 
+hywaves include our SWAN numerical model python wrapper, detailed information, documentation and examples can be found at <https://gitlab.com/geoocean/bluemath/numerical-models-wrappers/wrap_swan>
+
+[wswan](./hywaves/wswan/): SWAN numerical model toolbox 
+- [io](./hywaves/wswan/io.py): SWAN numerical model input/output operations
+- [wrap](./hywaves/wswan/wrap.py): SWAN numerical model python wrap 
+- [geo](./hywaves/wswan/geo.py): azimuth distance function
+- [storms](./hywaves/wswan/storms.py): storm parameters function 
+- [stopmotion](./hywaves/wswan/stopmotion.py): stopmotion library 
+- [vortex](./hywaves/wswan/vortex.py): vortex TC model 
+- [plots](./hywaves/wswan/plots/): plotting module 
 
 Statistical modules 
 
 - [mda](./hywaves/statistical/mda.py): MaxDiss classification module 
 - [rbf](./hywaves/statistical/rbf.py): Radial Basis Function module
+- [plots](./hywaves/statistical/plots.py): statistical related plots 
 
 
 <a name="doc"></a>
@@ -72,7 +77,6 @@ HyWaves - SWAN STATIONARY Methodology
 
 <a name="ins"></a>
 ## Install
-- - -
 
 Source code is currently privately hosted on GitLab at:  <https://gitlab.com/geoocean/bluemath/hybrid-models/hywaves/tree/master> 
 
@@ -80,7 +84,24 @@ Source code is currently privately hosted on GitLab at:  <https://gitlab.com/geo
 <a name="ins_src"></a>
 ### Install from sources
 
-Install requirements. Navigate to the base root of [hywaves](./) and execute:
+Use Python3.7 for full compatibility.
+
+Navigate to the base root of [hywaves](./)
+
+Using a Python virtual environment is recommended
+
+```sh
+# install virtualenv package 
+python3.7 -m pip install virtualenv
+
+# create a new virtual environment for installation
+python3.7 -m virtualenv venv
+
+# now activate the virtual environment
+source venv/bin/activate
+```
+
+Install requirements.
 
 ```bash
    # Default install, miss some dependencies and functionality
@@ -123,29 +144,17 @@ Copy SWAN binary file to module resources
   [GCC 8.4.0] on linux
   Type "help", "copyright", "credits" or "license" for more information.
   
-  >>> from hywaves import swan
-  >>> swan.set_swan_binary_file('swan.exe')
+  >>> from hywaves import wswan
+  >>> wswan.set_swan_binary_file('swan.exe')
 ```
 
 
 <a name="exp"></a>
 ## Examples:
-- - -
 
-<a name="exp_1"></a>
-### SWAN numerical wrap 
-
-- [demo 01 - STATIONARY](./scripts/hyswan/demo_01_stat.py): stationary example
-- [demo 02 - NON-STATIONARY](./scripts/hyswan/demo_02_nonstat.py): non-stationary example
-- [demo 03 - VORTEX PARAMETERS](./scripts/hyswan/demo_03_nonstat_vortex_params.py): non-stationary with TCs Vortex Model example (from parameters)
-- [demo 04 - VORTEX HISTORICAL](./scripts/hyswan/demo_04_nonstat_vortex_hist.py): non-stationary with TCs Vortex Model example (historical track interpolation)
-- [notebook - SWAN Vortex Historical](./notebooks/hyswan/nb_02_VORTEX_NONSTAT.ipynb): non-stationary storm Vortex model simulation from historical storm track
-
-<a name="exp_2"></a>
 ### HySWAN metamodel: MDA -> SWAN -> RBF
 
-- [notebook - HyWaves](./notebooks/hyswan/nb_01_MDA_STATIONARY_RBF.ipynb): Waves dataset propagation to a point using MDA classfication, SWAN-STATIONARY numerical simulation and RBF reconstruction. 
-- [notebook - HyTcWaves](./notebooks/hyswan/nb_03_MDA_VORTEX_NONSTAT_RBF.ipynb): Waves from Parametrized tropical cyclones dataset solved using MDA classification, Vortex winds model, SWAN-NONSTATIONARY numerical simulation and RBF reconstruction. 
+- [notebook - HyWaves](./notebooks/01_MDA_STATIONARY_RBF.ipynb): Waves dataset propagation to a point using MDA classfication, SWAN-STATIONARY numerical simulation and RBF reconstruction. 
 
 
 <a name="ctr"></a>
