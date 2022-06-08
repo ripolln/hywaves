@@ -1,4 +1,5 @@
-from distutils.core import setup
+#from distutils.core import setup
+from setuptools import setup
 import os
 
 import hywaves
@@ -16,7 +17,8 @@ def _reqs(*f):
     return [
         _pip_requirement(r) for r in (
             _strip_comments(l) for l in open(
-                os.path.join(os.getcwd(), 'requirements', *f)).readlines()
+                #os.path.join(os.getcwd(), 'requirements', *f)).readlines()
+                os.path.join(os.getcwd(), *f)).readlines()
         ) if r]
 
 def reqs(*f):
@@ -43,13 +45,14 @@ setup(
     author_email     = hywaves.__contact__,
     url              = hywaves.__url__,
     license          = 'LICENSE.txt',
-    python_requires  = ">=3.6",
+    python_requires  = ">=3.7",
     install_requires = install_requires(),
-    packages         = ['hywaves', 'hywaves.statistical', 'hywaves.swan',
-                        'hywaves.swan.plots',
-                        'hywaves.test'],
+    packages         = ['hywaves', 'hywaves.statistical', 'hywaves.wswan',
+                        'hywaves.wswan.plots', 'hywaves.statistical.plots',
+                       ],
+    include_package_data = True,
     package_data     = {
-        'hywaves' : ['resources/*']
+        'hywaves.wswan' : ['hywaves/wswan/resources/swan_bin/*'],
     },
     scripts          = [],
 )
