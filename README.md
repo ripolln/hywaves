@@ -11,8 +11,6 @@ A hybrid metamodel (numerical-statistical) approach to optimize complex waves ca
     1. [Install from sources](#ins_src)
     2. [Install SWAN numerical model](#ins_swn)
 6. [Examples](#exp)
-    1. [SWAN numerical wrap](#exp_1)
-    2. [HySWAN metamodel](#exp_2)
 7. [Contributors](#ctr)
 8. [License](#lic)
 
@@ -103,16 +101,14 @@ source venv/bin/activate
 
 Install requirements.
 
-```bash
-   # Default install, miss some dependencies and functionality
-   pip install -r requirements/requirements.txt
+```bash 
+pip install -r requirements.txt
 ```
 
 Then install hywaves:
 
 ```bash
-   python setup.py install
-
+python setup.py install
 ```
 
 <a name="ins_swn"></a>
@@ -121,31 +117,31 @@ Then install hywaves:
 Download and Compile SWAN numerical model:
 
 ```bash
-  # you may need to install a fortran compiler
-  sudo apt install gfortran
+# you may need to install a fortran compiler
+sudo apt install gfortran
 
-  # download and unpack
-  wget http://swanmodel.sourceforge.net/download/zip/swan4131.tar.gz
-  tar -zxvf swan4131.tar.gz
+# download and unpack
+wget http://swanmodel.sourceforge.net/download/zip/swan4131.tar.gz
+tar -zxvf swan4131.tar.gz
 
-  # compile numerical model
-  cd swan4131/
-  make config
-  make ser
+# compile numerical model
+cd swan4131/
+make config
+make ser
 ```
 
 Copy SWAN binary file to module resources
 
 ```bash
-  # Launch a python interpreter
-  $ python
+# Launch a python interpreter
+$ python
 
-  Python 3.6.9 (default, Apr 18 2020, 01:56:04) 
-  [GCC 8.4.0] on linux
-  Type "help", "copyright", "credits" or "license" for more information.
+Python 3.6.9 (default, Apr 18 2020, 01:56:04) 
+[GCC 8.4.0] on linux
+Type "help", "copyright", "credits" or "license" for more information.
   
-  >>> from hywaves import wswan
-  >>> wswan.set_swan_binary_file('swan.exe')
+>>> from hywaves import wswan
+>>> wswan.set_swan_binary_file('swan.exe')
 ```
 
 
